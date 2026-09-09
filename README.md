@@ -2,7 +2,7 @@
 
 **Pathfinder by Iron Signal Systems**
 
-Pathfinder is a threat-intelligence project focused on preserving source truth, separating observation from assessment, and turning external and internal threat information into operationally useful intelligence without manufacturing certainty.
+Pathfinder is a threat-intelligence project focused on preserving source truth, separating observation from assertion and assessment, and turning external and internal threat information into operationally useful intelligence without manufacturing certainty.
 
 Pathfinder is pre-release and under active development.
 
@@ -17,15 +17,23 @@ Pathfinder is intended to answer four practical questions:
 
 The project is not intended to become a large undifferentiated IOC bucket.
 
-The central design principle is:
+The central design principles include:
 
-> **An indicator is an assertion, not a fact. A sighting is an observation, not a conclusion.**
+> **Record the claim before judging the claim.**
 
-Pathfinder should allow an operator to work backward from an intelligence conclusion to the source records, observations, relationships, and processing decisions that produced it.
+> **A sighting is an observation, not a conclusion.**
+
+> **Correlation is not identity.**
+
+> **High confidence is still not authorization.**
+
+Pathfinder should allow an operator to work backward from an intelligence conclusion to the source records, assertions, observations, relationships, and processing decisions that produced it.
 
 ## Product Boundary
 
-Pathfinder owns threat-intelligence records, relationships, provenance, assessments, and intelligence lifecycle.
+> **Pathfinder owns the organization's record and interpretation of threat intelligence.**
+
+Pathfinder is authoritative for its threat-intelligence records, assertions, relationships, provenance, assessments, processing history, and intelligence lifecycle. It is not automatically authoritative for the real-world truth of every external assertion.
 
 It does not silently become:
 
@@ -47,7 +55,7 @@ Pathfinder preserves three distinct categories:
 
 ```text
 WHAT THE SOURCE SAID
-    preserved source material / source assertion
+    preserved source material / attributable assertion
 
 WHAT WAS OBSERVED
     sightings and observations from an identified source or system
@@ -66,13 +74,16 @@ The initial conceptual model includes:
 
 ```text
 Source
-Source Record
+SourceCollection
+RetrievalEvent
+SourceRecord
+Assertion
 Observable
 Indicator
 Sighting
 Assessment
 Relationship
-Threat Actor
+ThreatActor
 Campaign
 Malware
 Tool
@@ -82,9 +93,27 @@ Infrastructure
 Report
 ```
 
+### SourceRecord
+
+A SourceRecord preserves what Pathfinder actually received from a source or source collection.
+
+It is separate from the normalized intelligence derived from it.
+
+### Assertion
+
+An Assertion is an attributable claim made by a source.
+
+For example:
+
+```text
+Vendor A reports that 203.0.113.17 is C2 infrastructure.
+```
+
+Pathfinder can authoritatively record that Vendor A made that assertion without silently claiming the assertion itself is proven true.
+
 ### Observable
 
-An observable is something that exists or was seen.
+An Observable is something that can be observed, referenced, or matched.
 
 Examples include:
 
@@ -97,25 +126,25 @@ email address
 certificate fingerprint
 ```
 
-An observable is not inherently malicious.
+An Observable is semantically neutral.
 
 ### Indicator
 
-An indicator is an intelligence assertion about one or more observables.
+An Indicator represents operational threat significance associated with one or more observables or observable patterns and remains traceable to the assertions, assessments, and provenance supporting that meaning.
 
-An indicator should preserve its source, assessment, confidence, applicable time range, and provenance.
+An Indicator is not simply an Observable with `malicious=true`.
 
 ### Sighting
 
-A sighting records that an observable or intelligence object was actually observed by an identified source or system at a particular time.
+A Sighting records that an observable or intelligence object was actually observed by an identified source or system at a particular time.
 
-A sighting does not itself establish compromise, malicious intent, or attribution.
+A Sighting does not itself establish compromise, malicious intent, or attribution.
 
 ### Assessment
 
-An assessment records a conclusion or judgment and preserves who or what made it.
+An Assessment records a Pathfinder or authorized analyst judgment and preserves who or what made it, the basis for it, and confidence where applicable.
 
-Source-provided, machine-generated, and human-analyst assessments must remain distinguishable.
+External-source judgments remain Assertions unless an attributable Pathfinder process or analyst produces a separate Assessment.
 
 ### Relationship
 
@@ -138,11 +167,15 @@ Correlation does not automatically establish identity, ownership, control, or ma
 
 Provenance is a first-class requirement.
 
-Where applicable, Pathfinder should preserve:
+Pathfinder preserves distinctions among Source, SourceCollection, RetrievalEvent, SourceRecord, origin source, and delivery source.
+
+Where applicable, Pathfinder preserves:
 
 ```text
 provider
 feed or collection
+origin source
+delivery source
 source record identifier
 source publication time
 source observation time
@@ -160,6 +193,8 @@ processing time
 Where the governing source-preservation contract requires it, the original source representation is retained before transformation.
 
 A later parser or interpretation may produce new derived intelligence, but it must not rewrite the original source to make it appear that later understanding existed at the time of ingestion.
+
+Redistribution is not automatically independent corroboration.
 
 ## Intelligence Processing Direction
 
@@ -179,6 +214,9 @@ validate
   |
   v
 parse
+  |
+  v
+record Assertion
   |
   v
 normalize
@@ -201,36 +239,42 @@ publish / query / export
 
 Failure or partial processing must remain visible at each meaningful boundary.
 
-## Confidence and Reliability
+## Confidence, Reliability, and Corroboration
 
-Pathfinder should not reduce intelligence quality to one unexplained risk score.
+Pathfinder does not reduce intelligence quality to one unexplained risk score.
 
-Separate concepts may include:
+Pathfinder keeps separate:
 
 ```text
 source reliability
-information confidence
+source-reported confidence
+Pathfinder assessment confidence
 analyst confidence
 corroboration
-age
-recency
-independent-source count
-assessment status
+age / recency
+operational relevance
 ```
 
-A reliable source may still provide uncertain information.
+Initial qualitative reliability and Pathfinder confidence values are:
 
-Highly confident intelligence may become stale.
+```text
+HIGH
+MODERATE
+LOW
+NOT_ASSESSED
+```
 
-Several feeds repeating one original report do not automatically constitute independent corroboration.
+For source-reported confidence normalization, `NOT_REPORTED` and `UNMAPPED` remain distinct.
+
+Several feeds repeating one original report do not automatically constitute independent corroboration. Pathfinder distinguishes delivery sources, origin sources, and independently originated support.
+
+Local Sightings may increase operational relevance without independently proving maliciousness.
 
 ## Conflicting Intelligence
 
-Pathfinder should preserve disagreement rather than hiding it behind an averaged score.
+Pathfinder preserves disagreement rather than hiding it behind an averaged score.
 
-For example, two high-confidence sources may disagree about the same observable.
-
-That conflict should remain visible and attributable to the contributing sources.
+Two high-confidence sources may disagree about the same observable or relationship. That conflict remains visible and attributable to the contributing sources.
 
 Potential lifecycle/assessment states include:
 
@@ -244,11 +288,11 @@ disputed
 conflicted
 ```
 
-Exact vocabulary will be frozen through later schemas and contracts.
+Exact lifecycle vocabulary is frozen through later contracts.
 
 ## Time and History
 
-Pathfinder must preserve the distinction between times such as:
+Pathfinder preserves distinctions among:
 
 ```text
 source publication time
@@ -262,11 +306,7 @@ supersession time
 expiration time
 ```
 
-Receipt time is not publication time.
-
-Publication time is not necessarily observation time.
-
-Later receipt of historical intelligence must not make that intelligence appear newly observed.
+Receipt time is not publication time. Publication time is not necessarily observation time. Later receipt of historical intelligence must not make that intelligence appear newly observed.
 
 ## STIX and TAXII
 
@@ -292,9 +332,7 @@ STIX / TAXII
 
 STIX is not intended to dictate Pathfinder's internal storage or truth model.
 
-Valid STIX syntax does not prove that intelligence is true, trusted, or relevant.
-
-Successful TAXII transport does not prove that received intelligence should be accepted.
+Valid STIX syntax does not prove that intelligence is true, trusted, or relevant. Successful TAXII transport does not prove that received intelligence should be accepted.
 
 Translation loss or unsupported semantics must remain visible rather than being silently discarded.
 
@@ -304,21 +342,21 @@ Pathfinder is intended to support ATT&CK relationships and classifications where
 
 An ATT&CK technique association is not automatically proof that the technique occurred in a local environment.
 
-Source-reported mappings, Pathfinder-derived mappings, and locally observed behavior should remain distinguishable.
+Source-reported mappings, Pathfinder-derived mappings, and locally observed behavior remain distinguishable.
 
 ## Storage Direction
 
-The initial direction is to begin with a relational data model rather than introducing graph infrastructure before it is justified by measurement and requirements.
+The initial direction is a relational data model rather than introducing graph infrastructure before measurement and requirements justify it.
 
 PostgreSQL is the initial database direction.
 
-Relationships should remain first-class even when implemented relationally.
+Relationships remain first-class even when implemented relationally.
 
 A graph database may be evaluated later if real Pathfinder workloads demonstrate a need.
 
 ## Implementation Direction
 
-The initial implementation direction is intentionally small:
+The initial implementation direction remains intentionally small:
 
 ```text
 Go service
@@ -354,17 +392,11 @@ Potential relationships include:
 
 ### Atlas
 
-Atlas can provide environmental and asset context.
-
-A future correlation could help answer whether an external threat is relevant to actual owned systems, exposures, critical assets, or known software.
-
-Pathfinder does not become Atlas's asset authority.
+Atlas can provide environmental and asset context. Pathfinder can add threat context without becoming Atlas's asset authority.
 
 ### Stronghold
 
-Stronghold can provide authoritative network observations and decision history.
-
-Pathfinder can correlate those observations with external intelligence.
+Stronghold can provide authoritative network observations and decision history. Pathfinder can correlate those observations with external intelligence.
 
 A Pathfinder threat conclusion does not itself authorize Stronghold enforcement.
 
@@ -392,7 +424,7 @@ hunting candidate
 
 A recommendation is not an enforcement action.
 
-A future downstream enforcement workflow must preserve its own authorization, validation, simulation, approval, commit, audit, and rollback boundaries.
+A future downstream enforcement workflow preserves its own authorization, validation, simulation, approval, commit, audit, and rollback boundaries.
 
 > **High confidence is still not authorization.**
 
@@ -411,9 +443,33 @@ internal ISS observations
 
 The objective is to prove the intelligence model, provenance, conflict handling, lifecycle, and correlation behavior before expanding collection breadth.
 
+## Phase 0 Contracts
+
+Current governing design documents include:
+
+```text
+docs/INTELLIGENCE-MISSION.md
+    Phase 0.1 — mission, consumers, and product authority
+
+docs/CORE-INTELLIGENCE-MODEL.md
+    Phase 0.2 — first-class intelligence objects
+
+docs/OBSERVABLE-MODEL.md
+    Phase 0.3 — observable types and canonicalization
+
+docs/ASSERTION-ASSESSMENT-MODEL.md
+    Phase 0.4 — attributable claims and Pathfinder judgments
+
+docs/SOURCE-PROVENANCE-MODEL.md
+    Phase 0.5 — source identity, provenance, and lineage
+
+docs/CONFIDENCE-RELIABILITY-CORROBORATION.md
+    Phase 0.6 — reliability, confidence, independence, and corroboration
+```
+
 ## Engineering Direction
 
-Pathfinder follows the same general Iron Signal Systems engineering philosophy used across ISS projects:
+Pathfinder follows the Iron Signal Systems engineering philosophy:
 
 - explicit boundaries;
 - truthful state reporting;
