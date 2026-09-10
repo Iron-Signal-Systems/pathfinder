@@ -8,9 +8,15 @@ It is a behavioral contract and does not replace governing architecture, roadmap
 
 Where a more specific committed Pathfinder contract exists, that contract governs its defined implementation boundary.
 
+The Phase 0 reconciliation and exit document is the authority for conflicts between early Phase 0 wording and later refinements:
+
+[`docs/PHASE-0-RECONCILIATION-EXIT.md`](docs/PHASE-0-RECONCILIATION-EXIT.md)
+
 ## Governing Principles
 
-> **Preserve the source before interpreting the source.**
+> **Preserve what was received before deciding what it means.**
+
+> **Record the claim before judging the claim.**
 
 > **An observable is not inherently malicious.**
 
@@ -20,15 +26,15 @@ Where a more specific committed Pathfinder contract exists, that contract govern
 
 > **Correlation is not identity.**
 
-> **Confidence is not authorization.**
+> **Association is not attribution.**
 
-> **Absence from intelligence is not proof of benign status.**
+> **Confidence describes a judgment. Reliability describes a source. Corroboration describes support. They are not interchangeable.**
 
-> **Shared infrastructure is not proof of common ownership or operation.**
+> **The original record is maintained no matter what.**
 
 > **Current knowledge must not rewrite historical knowledge.**
 
-> **Derived intelligence remains traceable to the source material from which it was produced.**
+> **Derived intelligence remains traceable to the source material and processing lineage from which it was produced.**
 
 > **Conflicting intelligence remains visible rather than being silently averaged into false certainty.**
 
@@ -36,15 +42,44 @@ Where a more specific committed Pathfinder contract exists, that contract govern
 
 > **Expiration eligibility is not permission to destroy historical intelligence.**
 
-> **Pathfinder records what it can establish, preserves the source of that truth, and never manufactures certainty beyond it.**
+> **ATT&CK is a classification aid, not a prerequisite for understanding or proving a compromise.**
 
-> **Pathfinder intelligence may inform enforcement, but intelligence alone does not create enforcement authority.**
+> **High confidence is still not authorization.**
 
-## Product Model
+> **Pathfinder can inform a decision. Pathfinder does not silently become the authority to execute that decision.**
 
-Pathfinder is a threat-intelligence system.
+## Product Authority
 
-Its responsibilities may include:
+> **Pathfinder owns the organization's record and interpretation of threat intelligence.**
+
+Pathfinder is authoritative for its threat-intelligence records, interpretations, provenance, processing history, lifecycle, conflicts, and governed change history.
+
+It is not automatically authoritative for the real-world truth of an external assertion.
+
+ISS product authority remains separated:
+
+```text
+Atlas
+    asset/environment context
+
+FI
+    file and file-system observations
+
+Stronghold
+    network observations and network enforcement decisions
+
+Pathfinder
+    organizational threat-intelligence record and interpretation
+
+Guidon
+    backup/recovery state
+```
+
+Integration shares information. It does not transfer domain authority.
+
+## Product Boundary
+
+Pathfinder may:
 
 ```text
 receive
@@ -61,6 +96,7 @@ age
 expire
 supersede
 revoke
+dispute
 query
 report
 export
@@ -77,34 +113,9 @@ an identity authority
 an asset authority
 a vulnerability scanner
 a packet-capture authority
+a backup/recovery authority
 an autonomous remediation engine
 ```
-
-Other Iron Signal Systems products may provide observations or consume Pathfinder intelligence through explicitly defined integration boundaries.
-
-Those integrations do not transfer product authority.
-
-For example:
-
-```text
-Atlas
-    owns its authoritative asset/environment state
-
-FI
-    owns its authoritative file observations
-
-Stronghold
-    owns its authoritative network observations and decisions
-
-Guidon
-    owns its authoritative backup/recovery state
-
-Pathfinder
-    owns its threat-intelligence records, relationships,
-    assessments, provenance, and intelligence lifecycle
-```
-
-Correlation across ISS systems creates derived intelligence unless a governing contract explicitly defines otherwise.
 
 ## Three Categories of Truth
 
@@ -112,10 +123,10 @@ Preserve the distinction between:
 
 ```text
 WHAT THE SOURCE SAID
-    preserved source material / source assertion
+    preserved source material / attributable Assertion
 
 WHAT WAS OBSERVED
-    sightings and observations from an identified source or system
+    Sightings and observations from an identified authority
 
 WHAT PATHFINDER UNDERSTOOD
     normalized, correlated, enriched, or assessed intelligence
@@ -123,62 +134,112 @@ WHAT PATHFINDER UNDERSTOOD
 
 These categories must not be silently collapsed.
 
-Derived intelligence remains traceable to its applicable source material and processing lineage.
+A source saying an IP is malicious is an Assertion.
 
-Reprocessing may create new or superseding interpretation but MUST NOT rewrite the original source record to make it appear that later understanding existed when the source was originally received.
+Stronghold observing communication with that IP is a Sighting.
 
-A source saying that an IP address is malicious is a source assertion.
+Pathfinder associating the Sighting with infrastructure, malware, a campaign, or a threat actor is interpretation.
 
-A Pathfinder-connected system observing communication with that IP address is a sighting.
+Those are different records.
 
-Pathfinder associating that sighting with infrastructure, malware, a campaign, or a threat actor is derived interpretation.
+## Canonical Record Families
 
-Those are separate facts.
+Use the reconciled object families:
 
-## Core Intelligence Objects
+```text
+SOURCE / PROVENANCE
+    Source
+    SourceCollection
+    RetrievalEvent
+    SourceArtifact
+    SourceRecord
 
-Pathfinder should preserve explicit distinctions among intelligence concepts such as:
+INTELLIGENCE
+    Assertion
+    Observable
+    Indicator
+    Sighting
+    Assessment
+    Relationship
+    ThreatActor
+    Campaign
+    Malware
+    Tool
+    Vulnerability
+    Technique
+    Infrastructure
+    Report
+
+INTELLIGENCE STATE
+    LifecycleEvent
+    IntelligenceConflict
+
+SYSTEM HISTORY
+    ChangeRecord
+    ChangeSet
+    AuditEvent
+    ProcessingRecord
+```
+
+Do not introduce a generic object type that erases these distinctions merely because the database or API could represent them similarly.
+
+## SourceArtifact and SourceRecord
+
+The canonical source path is:
 
 ```text
 Source
-Source Record
-Observable
-Indicator
-Sighting
-Assessment
-Relationship
-Threat Actor
-Campaign
-Malware
-Tool
-Vulnerability
-Technique
-Infrastructure
-Report
+  ↓
+SourceCollection
+  ↓
+RetrievalEvent
+  ↓
+SourceArtifact
+  ↓
+SourceRecord
+  ↓
+Assertion
+  ↓
+normalized intelligence
 ```
 
-The existence of one object type must not silently imply another.
+`SourceArtifact` preserves the exact immutable acquired payload at the preservation boundary.
 
-For example:
+`SourceRecord` is a logical item represented within that artifact.
+
+Do not put artifact-owned exact-byte semantics back onto SourceRecord.
 
 ```text
-observable present              != indicator established
-indicator present               != maliciousness proven
-sighting present                != compromise established
-malware hash match              != malware execution established
-campaign association            != actor attribution established
-actor attribution               != attribution proven
-ATT&CK mapping                  != technique observed
-infrastructure relationship     != infrastructure ownership
+SourceArtifact != SourceRecord
+SourceRecord   != Assertion
 ```
 
-More specific schemas and contracts may refine these object classes.
+A SourceRecord may reference its parent artifact and deterministic locator. Parser output or reserialized JSON is not the original source bytes.
+
+## Original-History Rule
+
+> **The original record is maintained no matter what.**
+
+Do not destructively correct historical records.
+
+If a record is later found to be wrong, stale, revoked, superseded, disputed, conflicted, sensor-generated in error, parser-generated in error, created by analyst mistake, or produced by a compromised account, preserve the original and create the proper forward-moving corrective record.
+
+```text
+record incorrect  != record deleted
+revoked           != deleted
+superseded        != deleted
+disputed          != deleted
+conflict resolved != opposing record deleted
+revert            != erase
+```
+
+If mandatory policy requires destruction of SourceArtifact bytes, retain the immutable artifact metadata and destruction history required by the preservation contract.
 
 ## Source Intake Rules
 
-External intelligence is untrusted input.
+External intelligence is untrusted input even when the source is reputable or authenticated.
 
-Treat all source material as potentially:
+Treat source material as potentially:
 
 ```text
 malformed
@@ -186,412 +247,410 @@ incomplete
 stale
 duplicated
 contradictory
-unexpectedly large
+oversized
 unexpectedly encoded
 schema-invalid
 semantically invalid
 hostile
 ```
 
-Input validation is not optional merely because the source is reputable.
+Input validation is mandatory at applicable boundaries.
 
-Do not allow malformed source material to silently become valid normalized intelligence.
+Parsing failure remains visible.
 
-Parsing failure must remain visible.
+Unsupported input remains distinguishable from malformed input.
 
-Unsupported source content must remain distinguishable from invalid content.
+Normalization must not manufacture information absent from the source.
 
-Normalization must not manufacture information that was absent from the source.
+Preserve required source bytes before semantic parsing or destructive transformation.
 
-Where source preservation is required, preserve the source representation before transformation.
+Do not automatically execute, render, dereference, resolve, fetch, or otherwise activate source-supplied content merely because it was received.
 
-Preserve applicable provenance such as:
+## Observable Rules
+
+Observables are neutral.
+
+Canonicalization follows the applicable versioned Observable profile and must be deterministic and pure.
+
+Do not silently turn:
 
 ```text
-provider
-feed / collection
-source record identifier
-source publication time
-retrieval time
-receipt time
-source location
-source marking
-source format
-source hash
-parser version
-normalizer version
-processing time
+Observable -> Indicator
+Observable -> malicious
+URL host -> Domain Observable
+email domain -> Domain Observable
+certificate hash -> generic hash
 ```
 
-Source-specific parsing belongs at the source boundary. Do not contaminate the core intelligence model with arbitrary feed-specific semantics when a clean boundary can preserve them.
+without explicit versioned processing and provenance.
 
-## Source Reliability and Confidence Rules
+When safe canonicalization cannot be established, return the appropriate malformed/unsupported state rather than a best guess.
 
-Do not collapse all intelligence quality into one unexplained numeric score.
+## Assertion and Assessment Rules
 
-Preserve separate concepts where applicable, including:
+`Assertion` records an attributable claim.
+
+`Assessment` records a Pathfinder judgment.
+
+Assessment authorities are:
+
+```text
+HUMAN_ANALYST
+PATHFINDER_PROCESS
+```
+
+External-source judgments remain Assertions.
+
+Machine and human Assessments remain distinguishable.
+
+Sighting may be an Assessment subject where the assessment type permits it, allowing Pathfinder to assess observation validity without rewriting the Sighting.
+
+Do not implement judgment as a mutable truth field such as:
+
+```text
+indicator.malicious = true
+```
+
+when the value actually belongs to an Assessment.
+
+## Current-View Rules
+
+Current-state views are derived and rebuildable.
+
+Original historical records are not.
+
+Do not use implicit:
+
+```text
+newest wins
+highest confidence wins
+human always wins
+machine always wins
+largest record count wins
+last database row wins
+```
+
+semantics.
+
+For an applicable assessment domain, a singular current interpretation requires explicit supersession, conflict resolution, or another versioned approved current-view rule.
+
+If materially incompatible applicable Assessments remain unresolved, expose the current interpretation as conflicted rather than choosing a hidden winner.
+
+## Confidence, Reliability, and Corroboration
+
+Never collapse:
 
 ```text
 source reliability
-information confidence
+source-reported confidence
+Pathfinder Assessment confidence
 analyst confidence
 corroboration
-age
-recency
-independent-source count
-assessment status
+age / recency
+operational relevance
 ```
+
+into one unexplained score.
+
+Source reliability is a historical Assessment of Source or SourceCollection, not one mutable authoritative field on Source.
 
 A reliable source can publish uncertain information.
 
-Highly confident historical intelligence can still be operationally stale.
+A less reliable source can publish something correct.
 
-Multiple reports are not independent corroboration merely because Pathfinder received multiple copies of the same upstream source.
+Multiple deliveries of one upstream report are not independent corroboration.
 
-Do not inflate confidence because the same originating intelligence was redistributed through several feeds.
+`NOT_KNOWN` source independence never counts as `INDEPENDENT` by default.
 
-Confidence must not silently create enforcement authority.
+Repeated Sightings are not repeated independent corroboration of maliciousness.
 
-## Correlation Rules
+## Correlation and Relationship Rules
 
-Correlation is derived intelligence.
+Relationships come from a versioned Pathfinder-controlled registry.
+
+Do not allow arbitrary caller-supplied relationship strings to become authoritative semantics.
 
 Do not silently convert:
 
 ```text
 possibly_related
 shares_infrastructure_with
-reported_with
-observed_with
 resolves_to
 communicates_with
-uses_certificate
-uses_domain
-uses_ip
-shares_artifact_with
+associated_with
 ```
 
 into:
 
 ```text
 is
+same_entity
 owns
 operates
 controls
-same_entity
+attributed_to
 malicious
 compromised
 ```
 
-without an explicit supported basis.
+Relationship origin and ATT&CK mapping origin are separate dimensions.
 
-Relationship candidates and confirmed relationships are different states.
-
-Historical relationships are time-bounded where the underlying facts are time-dependent.
-
-For example:
+Relationship origin:
 
 ```text
-IP -> hostname
-domain -> IP
-certificate -> service
-infrastructure -> provider
-account -> organization
-malware -> infrastructure
+SOURCE_NORMALIZED
+PATHFINDER_DERIVED
+ANALYST_RECORDED
 ```
 
-must not automatically be treated as timeless relationships.
-
-Current DNS resolution does not rewrite historical DNS state.
-
-Current WHOIS/registration data does not rewrite historical registration state.
-
-Current infrastructure ownership does not automatically establish historical infrastructure ownership.
-
-## Common Truth Separations
-
-Never collapse these distinctions:
+ATT&CK mapping origin:
 
 ```text
-source received                    != source trusted
-source authenticated               != information true
-source available                   != source reliable
-source record preserved            != source record understood
-record parsed                      != record semantically valid
-record normalized                  != intelligence confirmed
-observable                         != malicious indicator
-indicator                          != compromise
-indicator match                    != malicious activity established
-sighting                           != compromise
-sighting                           != attribution
-source assertion                   != Pathfinder conclusion
-source confidence                  != Pathfinder confidence
-high confidence                    != enforcement authorized
-multiple feeds                     != independent corroboration
-duplicate reports                  != corroborating reports
-shared IP                          != same infrastructure operator
-shared certificate                 != same threat actor
-shared domain                      != same campaign
-shared malware                     != same actor
-relationship candidate             != confirmed relationship
-association                        != identity
-correlation                        != causation
-current relationship               != historical relationship
-current DNS resolution             != historical DNS resolution
-current IP owner                   != historical IP owner
-current domain owner               != historical domain owner
-current assessment                 != historical assessment
-new interpretation                 != new historical observation
-reprocessing result                != original source knowledge
-source corrected                   != old source never existed
-indicator expired                  != indicator historically absent
-indicator expired                  != destruction authorized
-indicator revoked                  != historical record erased
-assessment superseded              != previous assessment deleted
-assessment disputed                != assessment disproven
-conflicting intelligence           != intelligence absent
-no indexed result                  != no intelligence exists
-index unavailable                  != source history unavailable
-processing failed                  != source record lost
-parser failure                     != source invalid
-unsupported record                 != malformed record
-enrichment unavailable             != observable invalid
-ATT&CK technique associated        != technique observed
-CVE associated                     != asset vulnerable
-asset vulnerable                   != exploit observed
-exploit observed                   != compromise established
-malware hash matched               != malware executed
-malware executed                   != successful compromise
-threat actor associated            != attribution proven
-campaign associated                != actor identified
-IP reputation                      != endpoint identity
-domain reputation                  != destination intent
-certificate match                  != service ownership
-STIX valid                         != intelligence trusted
-TAXII transport succeeded          != source content accepted
-API access                         != analyst authority
-analyst authority                  != enforcement authority
-Pathfinder recommendation          != downstream action approved
+ATTACK_NATIVE
+SOURCE_REPORTED
+PATHFINDER_ASSOCIATED
+LOCALLY_SUGGESTED
+LOCALLY_CONFIRMED
+ANALYST_RECORDED
 ```
 
-## Failure-State Discipline
+Do not merge these enums.
 
-Preserve meaningful states such as:
+No relationship is assumed symmetric or transitive unless its registry definition explicitly says so.
+
+Do not infer relationships merely because objects co-occur in a report, bundle, graph neighborhood, or time window.
+
+## ATT&CK Rules
+
+ATT&CK is optional classification/reference metadata.
+
+Pathfinder must never require an ATT&CK technique, tactic, mapping, or sequence before it can preserve, assess, prioritize, or escalate activity.
 
 ```text
-unknown
-not_known
-not_observed
-not_verified
-not_performed
-not_present
-not_applicable
-unsupported
-degraded
-unavailable
-mismatch
-failed
-partial
-processing_pending
-processing_failed
-index_incomplete
-source_unavailable
-source_authentication_failed
-source_rate_limited
-source_schema_mismatch
-parse_failed
-normalization_failed
-enrichment_unavailable
-correlation_pending
-conflicted
-disputed
-expired
-revoked
-superseded
+ATT&CK NOT_MAPPED != low significance
+Technique overlap != attribution
+Technique matched != actor identity
+Technique matched != malware identity
+LOCALLY_CONFIRMED != compromise proven
 ```
 
-Do not infer success from the absence of an error.
+Do not manufacture mappings to improve apparent coverage.
 
-Do not represent partial processing as complete processing.
+## Sighting Rules
 
-A later successful retry does not erase an earlier failed operation.
+A Sighting is an observation, not a conclusion.
 
-If Pathfinder could not determine something, report that state rather than inventing a value.
+```text
+Sighting != maliciousness
+Sighting != compromise
+Sighting != attribution
+Sighting != successful exploitation
+```
 
-## Raw Source and Derived Data Rules
+Preserve observer authority, event time, receipt time, context, and provenance.
+
+Duplicate delivery is not repeated observation.
+
+Aggregate observation is not fabricated individual event history.
+
+No-Sighting results require coverage context. Do not create ordinary negative Sightings without a contract capable of proving the required observation coverage.
+
+## Conflict Rules
+
+`IntelligenceConflict` is first-class.
+
+Conflict is not ingestion failure.
+
+Do not resolve conflict through universal rules such as:
+
+```text
+majority wins
+highest confidence wins
+highest reliability wins
+newest record wins
+last received wins
+```
+
+A conflict may remain unresolved.
+
+> **Uncertainty is an acceptable analytical result.**
+
+Conflict resolution never deletes the losing Assertion or Assessment.
+
+## Lifecycle Rules
+
+Initial lifecycle vocabulary:
+
+```text
+ACTIVE
+AGING
+EXPIRED
+REVOKED
+SUPERSEDED
+DISPUTED
+CONFLICTED
+```
+
+Lifecycle state describes current applicability, not objective truth.
+
+```text
+ACTIVE      != true
+EXPIRED     != false
+EXPIRED     != benign
+REVOKED     != never existed
+SUPERSEDED  != deleted
+DISPUTED    != disproven
+CONFLICTED  != invalid
+```
+
+Lifecycle does not directly authorize physical destruction.
+
+## Typed State Rules
+
+Do not create one generic `status` enum for unrelated domains.
+
+Use explicit typed dimensions such as:
+
+```text
+OperationResult
+PreservationState
+IntegrityState
+AvailabilityState
+ProcessingState
+HealthState
+CoverageState
+IndexState
+LifecycleState
+ReviewState
+ConflictStatus
+```
+
+The same textual word may appear in more than one domain only when the typed field preserves which semantic dimension it belongs to.
+
+For SourceArtifact specifically, keep preservation, integrity, and availability separate.
+
+Example direction:
+
+```text
+PreservationState
+    RECEIVING
+    PRESERVED
+    PARTIAL
+    FAILED
+
+IntegrityState
+    NOT_VERIFIED
+    VERIFIED
+    MISMATCH
+
+AvailabilityState
+    AVAILABLE
+    QUARANTINED
+    UNAVAILABLE
+    DESTROYED_BY_POLICY
+```
+
+## Raw and Derived Data
 
 Original source information and derived Pathfinder information are separate data classes.
 
-Where the source-preservation contract requires retention of original material:
+Derived processing MUST NOT modify preserved original records merely because later interpretation changes.
+
+Parser or mapper upgrades create new ProcessingRecords and derived results.
+
+They must not make later understanding appear to have existed during the original processing event.
+
+## ChangeRecord and ChangeSet Rules
+
+`ChangeRecord` records an intentional material change to governed current interpretation, workflow, or configuration.
+
+`ChangeSet` groups one logical set of ChangeRecords.
+
+A committed ChangeSet is atomic:
 
 ```text
-SOURCE
-    ↓
-preserve
-    ↓
-validate
-    ↓
-parse
-    ↓
-normalize
-    ↓
-correlate
-    ↓
-enrich
-    ↓
-assess
-    ↓
-publish
+all semantic changes commit
+    or
+none commit
 ```
 
-Derived processing MUST NOT modify the preserved original merely because the interpretation changes.
+A bulk operation may preflight many records and may intentionally produce several independent ChangeSets. The bulk job may be `PARTIAL`, but an individual committed ChangeSet is not partially committed.
 
-Parser upgrades may result in new derived representations.
+Corrections move forward.
 
-They must not make it appear that those representations were known during the original processing event.
+No normal `reset --hard` or force-push equivalent exists for authoritative Pathfinder history.
 
-Where practical, derived records should retain sufficient lineage to identify:
+## AuditEvent and ProcessingRecord Rules
+
+Do not use ChangeRecord as a generic event log.
+
+Use:
 
 ```text
-source record
-parser
-parser version
-normalizer
-normalizer version
-correlation process
-assessment authority
-processing time
+ChangeRecord / ChangeSet
+    intentional governed change
+
+AuditEvent
+    security / authorization / access / administration / integrity operation
+
+ProcessingRecord
+    parser / normalizer / mapper / correlation / lifecycle / conflict / reprocessing lineage
 ```
+
+These histories may reference one another but must not be collapsed into one ambiguous universal event table.
+
+A future `log` or `show` view may project across them without duplicating every processing event into the changelog.
 
 ## Deduplication Rules
 
 Deduplication must not destroy provenance.
 
-Two identical observables from two genuinely independent intelligence sources may constitute two source relationships.
-
-Two copies of one upstream report received through different redistributors do not automatically constitute two independent sources.
-
 Distinguish:
 
 ```text
-same observable
-same source record
+same Observable
+same SourceArtifact
+same SourceRecord
 duplicate delivery
 redistributed source
 independent corroboration
 ```
 
-Do not use deduplication to erase useful source history.
-
-## Assessment Rules
-
-An assessment must preserve who or what made the assessment and what information supported it where applicable.
-
-Machine-generated, source-provided, and human-analyst assessments must remain distinguishable.
-
-Pathfinder must not silently represent automated inference as analyst judgment.
-
-Changing an assessment does not rewrite the prior assessment as though it never existed.
-
-Conflicting assessments may coexist.
-
-Where one assessment supersedes another, the relationship must remain explicit.
-
-## Intelligence Lifecycle Rules
-
-Intelligence may have lifecycle states such as:
-
-```text
-active
-aging
-expired
-revoked
-superseded
-disputed
-conflicted
-```
-
-Exact lifecycle vocabulary is governed by committed schemas/contracts once frozen.
-
-Expiration indicates that an intelligence assertion should no longer be treated as currently valid under the applicable rule.
-
-Expiration does not mean:
-
-```text
-historically false
-historically absent
-safe
-benign
-authorized for deletion
-```
-
-Revocation similarly does not authorize destruction of historical records.
-
-Historical intelligence may remain valuable for incident reconstruction, hunting, forensics, source evaluation, and retrospective analysis.
+Identical canonical Observables may resolve to one Observable while every source record, assertion, and delivery path remains independently traceable.
 
 ## STIX / TAXII Rules
 
-STIX and TAXII interoperability must not silently redefine Pathfinder's internal truth model.
-
-Valid STIX syntax does not prove that its assertions are true.
-
-Successful TAXII transport does not prove that received intelligence is valid, trusted, relevant, or accepted.
-
-Imported external identifiers should be preserved where required for interoperability.
-
-Pathfinder-native identity and external-source identity must not be silently conflated.
-
-Translation between Pathfinder's internal model and STIX must preserve meaningful distinctions and expose any translation loss.
-
-Do not discard Pathfinder provenance or uncertainty merely because an external format cannot represent it exactly.
-
-## ATT&CK Rules
-
-MITRE ATT&CK relationships are intelligence classifications and references.
-
-An ATT&CK technique association does not by itself establish that the technique actually occurred in a local environment.
-
-Keep distinctions such as:
+STIX and TAXII are interoperability boundaries, not Pathfinder's internal truth model.
 
 ```text
-source reports technique
-Pathfinder associates technique
-local telemetry suggests technique
-local telemetry confirms defined observation
+valid STIX != intelligence trusted
+TAXII success != content accepted
+same STIX object from many feeds != independent corroboration
 ```
 
-according to the applicable future contracts.
+STIX translation loss and unsupported semantics remain explicit.
 
-Do not manufacture ATT&CK mappings merely to increase apparent coverage.
+TAXII transport, pagination, source preservation, STIX validation, native mapping, commit, retry, and checkpoint state remain separate.
+
+A checkpoint advances only after the applicable safe preservation/commit boundary succeeds.
 
 ## Integration Rules
 
-Pathfinder integrations consume or provide explicitly scoped information.
+ISS integrations use explicitly versioned contracts and narrow authenticated identities.
 
-An integration does not silently transfer authority between products.
-
-Examples:
+No direct cross-product database writes.
 
 ```text
-FI file observation
-    != Pathfinder malware conclusion
-
-Stronghold network observation
-    != Pathfinder threat conclusion
-
-Pathfinder threat conclusion
-    != Stronghold enforcement authorization
-
-Atlas asset relationship
-    != Pathfinder asset authority
-
-Pathfinder vulnerability relationship
-    != Atlas vulnerability fact unless accepted under Atlas rules
+Pathfinder writes Atlas tables        -> forbidden
+Stronghold edits Pathfinder tables    -> forbidden
+FI inserts directly into Pathfinder   -> forbidden
 ```
 
-Pathfinder may produce recommendations or candidate actions.
+Use controlled API/message boundaries with schema and semantic validation.
 
-Downstream systems retain their own authorization and enforcement boundaries.
+A compromised authenticated peer is still untrusted input outside its permitted authority.
+
+Integration outage or authentication failure means coverage is degraded. It does not mean no observation occurred.
 
 ## Enforcement Boundary
 
@@ -600,13 +659,14 @@ Pathfinder is not an autonomous enforcement authority.
 Do not silently turn:
 
 ```text
-indicator
-assessment
+Indicator
+Assessment
 IOC match
 high confidence
 source consensus
-threat actor association
-campaign association
+ThreatActor association
+Campaign association
+ATT&CK mapping
 ```
 
 into:
@@ -621,39 +681,23 @@ quarantine
 destructive remediation
 ```
 
-A future integration may explicitly support candidate enforcement actions, but authorization, validation, simulation, approval, commit, and audit boundaries must be defined by the applicable downstream contract.
+A Pathfinder candidate action is a recommendation, not a command.
 
-> **High confidence is still not authorization.**
+Downstream systems retain their own validation, simulation, authorization, commit, audit, and rollback rules.
 
 ## Security and Trust Rules
 
-External feeds, APIs, analysts, service identities, automation identities, and ISS product integrations are distinct trust domains unless an explicit contract establishes otherwise.
-
-No credential, source identity, analyst identity, service identity, API token, certificate, signing key, or integration identity silently becomes universal authority.
-
-Keep separate, where applicable:
-
-```text
-source authentication
-service authentication
-human authentication
-analyst authority
-administrative authority
-API authority
-publication authority
-integration authority
-enforcement authority
-```
-
 Authentication is not authorization.
 
-Access to intelligence is not authority to change intelligence.
+Authorization is not semantic validity.
 
-Authority to change an assessment is not authority to destroy history.
+No credential, API token, certificate, signing key, service principal, analyst identity, or integration identity becomes universal authority.
 
-Authority to publish intelligence is not authority to enforce it.
+Machine-to-machine integration direction prefers mTLS and narrow identity binding.
 
-Fail closed where a protected operation requires authorization or trust that could not be established.
+Network location, localhost, RFC1918 addressing, management VLAN membership, VPN presence, or caller-provided product name does not establish authority.
+
+Protected operations fail closed when required authorization/trust cannot be established.
 
 ## Secrets and Sensitive Material
 
@@ -673,107 +717,121 @@ protected customer information
 restricted intelligence-source credentials
 ```
 
-Diagnostics, parser failures, source preservation, support bundles, traces, crash artifacts, and exports must not become accidental secret-storage paths.
+Raw source content may itself contain secrets or restricted data.
 
-Source content may itself contain sensitive or restricted information and must be handled according to its applicable marking and handling rules.
+Diagnostics, errors, traces, crash output, support bundles, and metrics must not become accidental raw-source or secret stores.
 
-## Data Marking and Handling Rules
+Prefer stable record/request identifiers for diagnostic correlation.
 
-Do not discard source handling restrictions, distribution markings, or classification metadata merely because the underlying observable is technically simple.
+## Marking and Handling Rules
 
-For example, the fact that an IP address itself is public does not necessarily mean the source assertion, context, attribution, or report containing it is unrestricted.
+Do not discard source handling restrictions during normalization, correlation, export, or integration.
 
-Any future support for TLP, proprietary-source markings, government handling markings, customer-private intelligence, or other distribution controls must preserve those boundaries explicitly.
+A technically public Observable extracted from a restricted report does not automatically make the report, Assertion, context, or attribution unrestricted.
 
-Do not broaden access during normalization, correlation, export, or integration.
+Raw SourceArtifact access may require stronger authorization than normalized-intelligence access.
 
-## Retention / Destruction Rules
+## Retention and Destruction
 
-Source records, normalized intelligence, derived relationships, assessments, sightings, and processing history may require distinct retention policies.
+Retention, lifecycle, archive, and physical destruction are separate domains.
 
-Age or expiration establishes eligibility under a retention policy; it does not itself create destruction authority.
+```text
+expired != destroy
+revoked != destroy
+superseded != destroy
+archive != destroy
+storage pressure != destruction authority
+```
 
-A hold overrides ordinary expiration where applicable.
+A hold overrides ordinary destruction eligibility where applicable.
 
-Archive is not destruction.
-
-Storage pressure must not silently create permission to rewrite or destroy intelligence history.
-
-Manual destructive operations require explicit authority where defined.
+Authorized destruction of raw bytes preserves the historical record of what existed and why it was destroyed.
 
 ## Search and Index Rules
 
-Indexes are derived structures.
-
-The authoritative source/intelligence records and the indexes used to find them are not the same thing.
+Indexes, caches, and current views are derived structures.
 
 > **Pathfinder must never present an incomplete index as complete intelligence history.**
 
-A query over incomplete, rebuilding, unavailable, or partially processed indexes must expose that condition rather than silently returning an unqualified:
+A query over incomplete, stale, rebuilding, failed, unavailable, or partially processed data must expose the applicable condition.
 
 ```text
-no results
+no indexed result != no intelligence exists
+no visible result != no restricted matching record exists
 ```
 
-Rebuilding an index must not rewrite authoritative source or intelligence history.
-
-Search optimization must not silently change intelligence meaning.
+Current views and indexes may be rebuilt from historical records. Historical records may not be replaced by those derived structures.
 
 ## Time Rules
 
-Preserve distinctions between:
+Preserve distinct time semantics, including where applicable:
 
 ```text
-source publication time
 source observation time
+source publication time
+source modified time
+retrieval start/completion
 Pathfinder receipt time
-Pathfinder retrieval time
-Pathfinder processing time
-local sighting time
-assessment time
+preservation time
+processing time
+local Sighting time
+Assessment time
+lifecycle effective time
+lifecycle recorded time
 supersession time
-expiration time
 ```
 
-These timestamps are not interchangeable.
+Do not substitute receipt time when observation time is unknown.
 
 Timestamp precision is not timestamp accuracy.
 
-Retrieval time is not publication time.
+UUIDv7 ordering does not replace explicit timestamps or committed ordering where order matters.
 
-Publication time is not necessarily observation time.
+## Success and Failure Discipline
 
-Later receipt of old intelligence must not make that intelligence appear newly observed.
+Do not infer success from absence of an error.
+
+Do not represent partial processing as complete processing.
+
+Do not erase an earlier failure because a retry later succeeds.
+
+If Pathfinder cannot establish something, use an explicit unknown/not-known/not-verified/not-performed state rather than inventing a value.
+
+Success is returned only after the required durable commit boundary succeeds.
+
+Collectors advance checkpoints only after the required safe preservation/commit boundary succeeds.
 
 ## Resource Priority
 
-Pathfinder should prioritize preserving incoming source material and authoritative intelligence state over secondary processing.
+When resources are constrained, authoritative history and source preservation take priority over rebuildable convenience work where architecture permits.
 
-General priority intent:
+General intent:
 
 ```text
-1. safely receive source material
-2. preserve required source records
-3. validate / establish source-processing state
-4. commit authoritative Pathfinder records
-5. maintain required processing/audit history
-6. normalize
-7. correlate
-8. enrich
-9. index
-10. report / export / presentation
-11. secondary analytics and optional convenience work
+1. safely receive and preserve required SourceArtifacts
+2. protect authoritative historical records
+3. commit required processing/change/audit history
+4. maintain correctness/readiness
+5. normalize and correlate
+6. index and build current views
+7. enrich
+8. report/export/presentation
+9. optional analytics and convenience work
 ```
 
-Exact implementation ordering must be established by architecture and measurement.
-
-Secondary enrichment, visualization, reporting, support, or analytics work must not cause Pathfinder to silently lose authoritative source material.
+Exact runtime priorities must be measured and implemented deliberately.
 
 ## Scope Discipline
 
-Work only within the current roadmap phase and currently approved engineering slice.
+Work only within the current roadmap phase and approved engineering slice.
 
-Do not pull future systems into the current phase merely because their architecture has been discussed.
+Current next phase is:
+
+```text
+Phase 1.1 — Runtime and Repository Foundation
+```
+
+Do not skip directly into broad feed implementation or a complete speculative object schema.
 
 Do not prematurely implement:
 
@@ -791,15 +849,21 @@ unbounded analytics
 polished UI
 ```
 
-unless they are explicitly part of the current approved roadmap phase.
+unless explicitly added to the current approved roadmap slice.
 
-Build the requirement that exists now.
+## Phase 1 Schema Discipline
 
-Preserve future compatibility where necessary without implementing future functionality early.
+Phase 1.2 implements the relational schema required for the first complete vertical slice.
+
+It does not require tables for every conceptual object immediately.
+
+Before implementing additional object families, define the concrete schema contract required by the actual workload.
+
+Do not invent fields merely because Phase 0 named a conceptual object.
 
 ## Repository Operations
 
-Do not perform repository writes unless explicitly authorized for the specific action.
+Do not perform repository writes unless explicitly authorized for the specific action or change set.
 
 This includes:
 
@@ -830,43 +894,46 @@ Permission for one repository write applies only to the specifically approved ac
 Important paths should preserve enough state and history to answer:
 
 ```text
-What source supplied this information?
-What exactly did the source say?
-When did the source say it?
+What Source supplied this information?
+What SourceArtifact was preserved?
+What logical SourceRecord was processed?
+What exactly did the source assert?
 When did Pathfinder receive it?
-Was the original source preserved?
+Was the original artifact preserved and verified?
 Did parsing succeed?
 Did normalization succeed?
-What information was derived?
-What relationships were inferred?
-What relationships were directly reported?
-What corroborated the assessment?
+Which process/version produced the interpretation?
+What relationships were source-normalized?
+What relationships were derived?
+What corroborated the Assessment?
 Were those sources actually independent?
-What confidence was assigned?
-Who or what assigned it?
+What confidence was assigned and by whom?
 Is conflicting intelligence present?
-Has the intelligence expired, been revoked, or been superseded?
+What is the current interpretation and why?
+What was the interpretation at an earlier time?
+Has the intelligence expired, been revoked, disputed, or superseded?
 What did Pathfinder fail to establish?
-Is search/index coverage complete?
+Is source/search/index coverage complete?
 Was a downstream recommendation produced?
 Was any downstream action separately authorized?
 ```
 
-A useful Pathfinder result should allow an operator to work backward from a conclusion to the source records and processing decisions that produced it.
-
 ## Review Expectations
 
-Before proposing a change as complete, verify that applicable:
+Before proposing a change as complete, verify applicable:
 
 ```text
 source-preservation
+original-history
 provenance
 truth-separation
 normalization
 correlation
 confidence
 assessment
+current-view
 lifecycle
+conflict
 security
 trust
 authorization
@@ -876,6 +943,7 @@ time
 integration
 enforcement-boundary
 failure-state
+state-namespace
 scope
 repository-write
 ```
@@ -884,12 +952,16 @@ requirements remain intact.
 
 Also verify that:
 
+- SourceArtifact and SourceRecord were not collapsed;
 - observations have not silently become conclusions;
 - correlation has not silently become identity;
 - duplicated intelligence has not silently become corroboration;
 - current knowledge has not rewritten historical knowledge;
+- current-view selection does not use hidden last-write-wins;
 - confidence has not silently become authorization;
-- incomplete search/index coverage is not presented as complete;
+- ATT&CK mapping has not become a prerequisite for threat significance;
+- incomplete search/index/coverage state is not presented as complete;
+- ChangeSet atomicity has not been weakened;
 - failures and uncertainty remain visible;
 - future roadmap work has not been pulled forward without approval; and
 - applicable repository-owned validation and tests have been run.
@@ -902,11 +974,13 @@ Nested `AGENTS.md` files may refine subtree-specific requirements but must not s
 
 ```text
 source preservation
+original historical record preservation
 provenance
 truthfulness
 uncertainty
 correlation boundaries
 assessment boundaries
+current-view rules
 security
 authorization
 retention
@@ -914,6 +988,8 @@ history
 search completeness
 integration authority
 enforcement boundaries
+state namespaces
+ChangeSet atomicity
 scope discipline
 repository-write restrictions
 ```
