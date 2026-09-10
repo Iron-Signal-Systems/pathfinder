@@ -6,7 +6,13 @@ Pathfinder is part of the Iron Signal Systems product family, but it remains an 
 
 > **Integration shares information. It does not transfer domain authority.**
 
-Each ISS product remains authoritative only for the facts and decisions within its defined domain. Pathfinder may consume, correlate, interpret, and assess information from another ISS product, but it must not rewrite that product's observations as Pathfinder-owned facts. Likewise, another ISS product must not become authoritative for Pathfinder intelligence merely because it consumes Pathfinder output.
+Each ISS product remains authoritative only for the facts and decisions within its defined domain. Pathfinder may consume, correlate, interpret, and assess information from another ISS product, but it must not rewrite that product's observations as Pathfinder-owned facts.
+
+Likewise, another ISS product does not become authoritative for Pathfinder intelligence merely because it consumes Pathfinder output.
+
+The governing historical invariant is:
+
+> **The original record is maintained no matter what.**
 
 ## Product Authority Map
 
@@ -46,39 +52,22 @@ Stronghold observed:
 Pathfinder stores:
     Sighting of that observation
 
-Observation authority:
+observation authority:
     Stronghold
 
 Pathfinder authority:
     preservation, correlation, and threat-intelligence interpretation
 ```
 
-Therefore:
-
 ```text
 stored in Pathfinder != originated from Pathfinder
 ```
 
-## Integration Record
-
-Every imported ISS integration record must preserve:
-
-```text
-originating product
-originating system identity
-external record identity where available
-observation/event time
-Pathfinder receipt time
-integration contract version
-processing result
-provenance
-```
-
-A cross-product record must always be traceable back to the product that supplied it.
-
 ## Integration Contract
 
-Every ISS product integration requires a versioned contract, for example:
+Every ISS product integration requires a versioned contract.
+
+Examples:
 
 ```text
 pathfinder-stronghold-integration-v1
@@ -89,23 +78,45 @@ pathfinder-atlas-integration-v1
 Each contract defines:
 
 ```text
+producer product/system identity
 accepted record types
 origin authority
 required fields
 time semantics
-identity semantics
+identity/correlation semantics
 allowed Pathfinder objects produced
 failure behavior
-deduplication/idempotency behavior
+idempotency behavior
 security requirements
 handling restrictions
+coverage semantics
+contract/schema version
 ```
 
-No integration should rely on undocumented assumptions.
+No integration relies on undocumented assumptions.
 
-## Stronghold Integration
+## Integration Record / Envelope
 
-Stronghold is authoritative for the network traffic and enforcement events it directly observes or produces under its own contracts.
+Every imported ISS integration event or record preserves enough information to identify:
+
+```text
+originating product
+originating system identity
+external record/event identity where available
+integration contract version
+observation/event time
+Pathfinder receipt time
+trigger/origin context where relevant
+handling/tenant scope
+processing result
+provenance
+```
+
+The integration envelope is transport/provenance context. It does not automatically become a threat-intelligence object.
+
+## Stronghold to Pathfinder
+
+Stronghold is authoritative for the network traffic observations and enforcement decisions it produces under its own contracts.
 
 Potential Pathfinder inputs include:
 
@@ -117,43 +128,65 @@ TLS/certificate observations
 application/network classification
 firewall decisions
 policy decision history
-network-path context
-interface observation context
+network-path/interface context
 ```
 
-Pathfinder may transform these into Sightings, relationship support, operational relevance Assessments, and correlation inputs where the applicable Pathfinder contract permits.
+Pathfinder may derive or create permitted:
 
-A Stronghold observation does not become a Pathfinder conclusion. A Stronghold deny does not mean malicious; a Stronghold allow does not mean benign.
+```text
+Sightings
+relationship support
+operational-relevance Assessments
+correlation candidates
+```
+
+while preserving Stronghold as the observation authority.
+
+```text
+Stronghold allow != benign
+Stronghold deny != malicious
+Stronghold Sighting != compromise
+```
 
 ## Pathfinder to Stronghold
 
-Pathfinder may eventually publish intelligence or recommendations to Stronghold, including Indicators, threat classification, operational relevance, block candidates, and monitoring candidates.
+Pathfinder may publish threat context or candidate recommendations such as:
 
-These are inputs to Stronghold. They are not Stronghold policy.
+```text
+Indicator context
+threat classification
+operational relevance
+WATCH candidate
+HUNT candidate
+BLOCK_CANDIDATE
+```
+
+These are inputs to Stronghold. They are not Stronghold policy or commands.
 
 > **Pathfinder can inform a decision. Pathfinder does not silently become the authority to execute that decision.**
 
 Stronghold retains its own validation, policy evaluation, simulation, authorization, commit, audit, and rollback behavior.
 
-There is no automatic rule:
-
-```text
-HIGH-confidence Indicator -> Stronghold block
-```
-
-Even high confidence, multiple independent sources, and a local Sighting do not themselves create network enforcement authority.
-
 > **High confidence is still not authorization.**
 
-## FI Integration
+## FI to Pathfinder
 
-FI is authoritative for file and file-system observations within its collection contract.
+FI remains authoritative for file and file-system observations within its collection contract.
 
-Potential Pathfinder inputs include file hash, file path, system identity, signer/certificate data, file metadata, creation/modification observations, security-descriptor context, and process/file relationships where FI defines them.
+Potential inputs include:
 
-Pathfinder may correlate those observations against malware, Indicators, campaign intelligence, certificate intelligence, known tooling, and threat relationships.
+```text
+file hash
+file path
+system identity
+signer/certificate information
+file metadata
+creation/modification observations
+security-descriptor context
+process/file relationships where FI defines them
+```
 
-A file hash observed by FI does not prove execution, malicious intent, successful compromise, or actor identity.
+Pathfinder may correlate these observations with malware, Indicators, campaigns, certificates, tools, infrastructure, and other threat intelligence.
 
 ```text
 file present != malware executed
@@ -162,43 +195,73 @@ signed file != benign
 unsigned file != malicious
 ```
 
-Pathfinder may eventually provide FI with hash-watch candidates, certificate-watch candidates, file-investigation candidates, and malware-context enrichment. These remain intelligence or recommendations, not deletion/quarantine authority.
+## Pathfinder to FI
 
-## Atlas Integration
+Pathfinder may provide FI with permitted investigation/watch candidates such as hashes, certificates, or file-review context.
 
-Atlas is authoritative for the modeled asset/environment context it maintains under its own contracts.
+These are intelligence/recommendations, not deletion, quarantine, ACL-change, or process-termination authority.
 
-Potential Pathfinder inputs include asset identity, hostname, IP assignment, system role, business role, operating system, software inventory, service exposure, network placement, asset criticality, and ownership context.
+## Atlas to Pathfinder
 
-Pathfinder may use Atlas context to answer:
+Atlas remains authoritative for modeled asset/environment context.
 
-> **Does this threat matter to systems we actually operate?**
+Potential context includes:
+
+```text
+asset identity
+hostname/IP assignment
+system/business role
+operating system
+software inventory
+service exposure
+network placement
+asset criticality
+ownership context
+```
+
+Pathfinder may use Atlas context to assess operational relevance.
 
 Pathfinder does not become the asset-inventory authority.
 
-Where practical, Pathfinder should preserve references to Atlas-owned asset identity rather than creating independent drifting copies. Cached context needed for historical reconstruction must be identified as an Atlas-derived historical snapshot, not current Atlas truth.
+## Historical Atlas Context
 
-## Historical Asset Context
-
-Current Atlas state may differ from the state when an event occurred. Historical Pathfinder records must not be rewritten using current Atlas state.
+Current Atlas state may differ from historical event-time state.
 
 Pathfinder must distinguish:
 
 ```text
 current Atlas state
 Atlas state known at event time
-Pathfinder-cached historical context
+Pathfinder-cached historical Atlas context
 ```
+
+Historical Pathfinder records are not rewritten using current Atlas state.
+
+## Pathfinder to Atlas
+
+Pathfinder may provide threat associations, Assessments, and relevance context for Atlas presentation/correlation.
+
+Atlas must not silently transform Pathfinder threat interpretation into Atlas-owned asset truth.
+
+## Guidon
+
+Guidon is not an initial Pathfinder runtime dependency.
+
+Potential future integrations may include recovery-point threat context, known-compromised-time references, incident recovery context, and recovery prioritization intelligence.
+
+Any Guidon integration requires its own explicit contract.
+
+Pathfinder must not require Guidon for normal threat-intelligence processing, and Guidon must not require Pathfinder for core backup/recovery operation.
 
 ## Correlation Is Not Identity
 
-Cross-product correlation must remain explicit.
+Cross-product correlation remains explicit.
 
 Matching hostname, IP address, certificate, MAC address, file path, or account name does not automatically establish identity.
 
 > **Correlation is not identity.**
 
-Where identity is uncertain, Pathfinder preserves candidate correlation such as:
+Where identity is uncertain, preserve a candidate such as:
 
 ```text
 Stronghold observation X
@@ -208,47 +271,85 @@ Atlas Asset Y
 
 rather than manufacturing equality.
 
-## Guidon Integration
+## Tenant / Scope Identity
 
-Guidon is not an initial Pathfinder runtime dependency.
+Identifiers such as hostnames, usernames, private IPs, and file paths are not globally unique.
 
-Potential future integrations may include recovery-point threat context, incident recovery context, known-compromised-time references, and recovery prioritization intelligence.
+Customer/tenant and other necessary scope are part of correlation semantics.
 
-Any Guidon integration requires its own explicit contract. Pathfinder must not require Guidon for normal threat-intelligence processing, and Guidon must not require Pathfinder for core backup or recovery operations.
+Pathfinder must not correlate across customer/tenant boundaries merely because text values match.
 
 ## No Circular Runtime Dependency
 
-ISS integrations must avoid circular dependency.
+ISS products should remain independently operable within their core missions.
 
 Preferred behavior:
 
 ```text
 products remain independently operable
 integrations enhance capability
-integration outage becomes explicit degraded state
+integration outage becomes explicit health/coverage state
 ```
 
-## Degraded Integration
+Pathfinder unavailability should not cause Stronghold to stop enforcing existing network policy. Stronghold/FI/Atlas integration failure should not cause Pathfinder to manufacture negative observations.
 
-If an integration is unavailable, Pathfinder reports the loss of coverage rather than manufacturing a negative conclusion.
+## Typed Integration State
 
-Examples:
+Integration state is not one overloaded status enum.
+
+### HealthState
+
+Overall integration capability uses the Phase 0.18 health dimension:
 
 ```text
-Atlas unavailable
-    -> asset enrichment UNAVAILABLE
-    != asset does not exist
-
-Stronghold unavailable
-    -> network observation coverage DEGRADED
-    != no suspicious communications occurred
-
-FI unavailable
-    -> file observation integration UNAVAILABLE
-    != no matching files exist
+HEALTHY
+DEGRADED
+UNAVAILABLE
+NOT_READY
+FAILED
 ```
 
-## Missing Integration Is Not Negative Evidence
+### CoverageState
+
+Observation/context coverage for a defined scope/time uses:
+
+```text
+COMPLETE
+PARTIAL
+INCOMPLETE
+NOT_KNOWN
+```
+
+### Operation / Processing Result
+
+Individual delivery/processing attempts use their applicable `OperationResult` / `ProcessingState`.
+
+### Failure Code
+
+Specific causes such as the following are failure codes, not HealthState values:
+
+```text
+AUTHENTICATION_FAILED
+AUTHORIZATION_FAILED
+SCHEMA_MISMATCH
+VERSION_UNSUPPORTED
+REPLAY_REJECTED
+RATE_LIMITED
+TRANSPORT_FAILED
+VALIDATION_FAILED
+```
+
+Example:
+
+```text
+integration_health = DEGRADED
+coverage_state = INCOMPLETE
+last_failure_code = AUTHENTICATION_FAILED
+```
+
+This is preferable to putting `DEGRADED` and `AUTHENTICATION_FAILED` into the same enum.
+
+## Missing Integration Is Not Negative Observation
 
 ```text
 no Stronghold Sighting != traffic did not occur
@@ -256,96 +357,144 @@ no FI Sighting != file did not exist
 no Atlas match != asset does not exist
 ```
 
-unless the applicable product can establish complete coverage for the relevant scope and time.
+unless the applicable producer can establish sufficient coverage for the relevant scope/time.
 
-## Integration Health
-
-Potential initial integration states include:
+If an integration is unavailable:
 
 ```text
-HEALTHY
-DEGRADED
-UNAVAILABLE
-AUTHENTICATION_FAILED
-AUTHORIZATION_FAILED
-SCHEMA_MISMATCH
-VERSION_UNSUPPORTED
+integration_health = UNAVAILABLE or DEGRADED
+coverage_state = INCOMPLETE / NOT_KNOWN
 ```
 
-These states describe the integration path, not the underlying environment.
+not a fabricated negative environmental conclusion.
 
 ## Version Compatibility
 
-Every integration contract defines supported producer/schema versions. Unsupported versions fail explicitly; Pathfinder must not silently parse new schemas using old assumptions.
+Every integration contract defines supported producer/schema versions.
 
-Unknown additive fields may be preserved without interpretation where safe. Unknown fields do not gain semantics automatically.
+Unsupported versions produce explicit processing failure, for example:
 
-## Integration Authentication
+```text
+processing_state = FAILED
+failure_code = VERSION_UNSUPPORTED
+```
 
-Phase 0.15 governs authentication. Each integration should have a separate principal, narrow permissions, a versioned contract, mTLS-preferred authentication, and auditable identity.
+Pathfinder does not silently parse v2 semantics using v1 assumptions.
 
-Payload-supplied product names never establish product identity.
+Unknown additive fields may be preserved without interpretation where the contract allows it.
 
-An FI principal must not be able to submit an observation as Stronghold. Origin authority must be derived from authenticated integration identity.
+```text
+unknown field != trusted new semantic field
+```
 
-## Multi-Hop Integration
+## Authentication and Product Identity
 
-If information travels through another ISS system, Pathfinder preserves origin and delivery separately.
+Phase 0.15 governs authentication/authorization.
+
+Each integration uses a separate principal with narrow permissions and auditable identity. mTLS is the preferred initial machine-to-machine direction.
+
+Payload text such as `product=FI` or a User-Agent string does not establish product identity.
+
+An FI principal may not submit data as Stronghold unless a future explicit mediation contract permits that path and preserves origin/delivery identities.
+
+## Multi-Hop Delivery
+
+If one ISS product relays another product's data, Pathfinder preserves origin and delivery separately.
 
 Example:
 
 ```text
-FI observation
-    delivered through Atlas
-    received by Pathfinder
-
-origin: FI
-delivery: Atlas
+origin = FI
+delivery = Atlas
+consumer = Pathfinder
 ```
 
-This mirrors Pathfinder's external source origin/delivery distinction.
+Atlas relaying the record does not become the original observation authority.
+
+## Cross-Product Time
+
+Producer event/observation time and Pathfinder receipt time remain separate.
+
+Where supplied, clock-quality/offset state may also be preserved.
+
+Pathfinder does not silently rewrite producer timestamps to fit local clock assumptions.
+
+## Replay and Idempotency
+
+Repeated delivery of the same authoritative producer event does not create false new Sightings when stable external identity permits reliable idempotency.
+
+```text
+one producer event
+multiple retries
+    -> one Sighting + delivery history
+```
+
+Duplicate delivery remains distinct from repeated real observation.
+
+## Aggregate Observations
+
+Aggregate producer records remain aggregates.
+
+Pathfinder does not fabricate individual events from counts unless the producer supplied those underlying events.
 
 ## Cross-Product Provenance
 
 Pathfinder must be able to answer:
 
 ```text
-Which ISS product observed this?
+Which ISS product observed/provided this?
 Which system instance produced it?
-How did Pathfinder receive it?
+How was it delivered?
 Was it transformed in transit?
-Which schema version was used?
+Which integration/schema version applied?
 When was it observed?
 When was it received?
 How did Pathfinder interpret it?
+Was processing complete?
+Was coverage complete?
 ```
-
-## Cross-Product Time
-
-Source-system event time and Pathfinder receipt time remain separate. Clock disagreement must not silently rewrite originating timestamps. Where source systems provide time-quality or clock-state metadata, Pathfinder should preserve it where relevant.
-
-## Replay and Idempotency
-
-Repeated delivery of the same authoritative observation must not create false new observations when stable external identity exists.
-
-```text
-one source observation
-multiple deliveries/retries
-```
-
-should remain one Sighting plus delivery history where the integration contract permits that determination.
-
-## Aggregate Observations
-
-Aggregate observations remain aggregate observations. Pathfinder must not fabricate individual events from counts.
 
 ## Integration Enrichment
 
-Pathfinder may enrich incoming observations, but the derived intelligence remains Pathfinder-owned interpretation and never rewrites the original peer observation.
+Pathfinder may enrich an incoming peer observation.
+
+The enrichment is Pathfinder-derived intelligence and must not overwrite the original producer record.
+
+```text
+Pathfinder enrichment != original Stronghold/FI/Atlas observation
+```
 
 ## No Reverse Contamination
 
-Later Pathfinder conclusions must not flow backward and overwrite peer history. If Stronghold classified an application as unknown and Pathfinder later associates the destination with malware, Stronghold history remains what Stronghold recorded.
+Later Pathfinder interpretation must not flow backward and rewrite peer history.
+
+If Stronghold originally recorded `application = unknown` and Pathfinder later associates the destination with malware, Stronghold's original observation remains `unknown` unless Stronghold itself emits a new authoritative classification.
+
+## Circular Corroboration Prevention
+
+Cross-product feedback loops must not manufacture independent corroboration.
+
+Example:
+
+```text
+1. Pathfinder rates Domain X high-risk.
+2. An authorized downstream workflow causes Stronghold to watch/block X.
+3. Stronghold reports blocked attempts to X.
+4. Pathfinder records local Sightings of attempted contact.
+```
+
+The Stronghold observations corroborate local attempted contact. They do **not** independently corroborate Pathfinder's original maliciousness Assessment merely because the monitoring/block action was prompted by Pathfinder.
+
+Likewise:
+
+```text
+Pathfinder requests FI hunt for hash H
+FI finds hash H
+```
+
+corroborates local presence, not the maliciousness semantics that caused Pathfinder to request the hunt.
+
+Trigger/origin lineage must remain visible so derived feedback is not miscounted as independent upstream support.
 
 ## Candidate Actions
 
@@ -366,29 +515,35 @@ These are recommendations.
 Pathfinder CandidateAction != command
 ```
 
-Any future execution workflow requires a separate authorization and action contract.
+Any future execution workflow requires separate downstream authorization/action contracts.
 
 ## Feedback From Peer Products
 
-Stronghold, FI, and Atlas may return outcomes or contextual feedback. These may become new Pathfinder context but do not modify the original threat intelligence.
+Stronghold, FI, Atlas, and future approved peers may return outcome/context records.
 
-Negative results must carry the originating product's coverage state.
+These may become new Pathfinder context or Sightings without modifying the original threat intelligence.
 
-## Data Handling and Tenant Boundaries
-
-Cross-product information may carry customer, incident, topology, identity, or other handling restrictions. Pathfinder must preserve those restrictions.
-
-If products support multiple customers/tenants, tenant identity is part of correlation scope. Pathfinder must never correlate across tenants merely because identifiers match.
-
-Identifiers such as hostname, username, private IP, file path, and asset name are not globally unique.
+Negative outcomes must carry producer coverage/health state where needed for interpretation.
 
 ## Data Minimization
 
-Integrations should send what Pathfinder needs under the contract, not entire unrelated product state. This reduces coupling, attack surface, data exposure, and storage duplication.
+Integrations should send only what Pathfinder needs under the versioned contract rather than copying entire product state by default.
 
-## API Versus Direct Database Access
+Examples:
 
-ISS products integrate through defined interfaces.
+```text
+Pathfinder may need a Stronghold network observation
+    != Pathfinder needs the entire firewall configuration
+
+Pathfinder may need FI hash/path observation
+    != Pathfinder needs the entire FI repository
+```
+
+Raw PCAP remains Stronghold-owned source material unless a separately authorized contract says otherwise. Raw file contents remain FI-owned unless specifically required and authorized.
+
+## API / Message Contract, Not Direct Database Access
+
+ISS products integrate through explicit APIs/message contracts/durable exchange artifacts.
 
 Forbidden architecture:
 
@@ -398,79 +553,83 @@ Stronghold edits Pathfinder tables
 FI inserts directly into Pathfinder PostgreSQL
 ```
 
-Preferred architecture:
-
-```text
-product API/message contract
-        ↓
-validation boundary
-        ↓
-owning product
-```
-
 > **Same database technology does not imply shared schema authority.**
+
+Direct cross-product table access bypasses product validation, authority, audit, and version contracts and is not an approved integration mechanism.
 
 ## Failure Isolation and Compromised Peers
 
-A malformed, defective, or compromised peer must not corrupt Pathfinder outside the integration's permitted scope.
+A malformed, defective, or compromised authenticated peer must not corrupt Pathfinder outside its permitted integration scope.
 
-Valid mTLS proves identity under the configured trust model, not that the peer is behaving correctly. Pathfinder still enforces schema validation, semantic validation, bounds, rate limits, authority scope, idempotency, and audit.
+Valid mTLS proves configured identity, not correct behavior.
+
+Pathfinder still enforces:
+
+```text
+schema validation
+semantic validation
+bounds
+rate limits
+authority scope
+idempotency/replay rules
+audit
+```
 
 ## Integration Disablement and Replacement
 
-Administrators must be able to disable or replace one integration without deleting historical records.
+Administrators may disable or replace one integration without deleting historical records.
 
 ```text
 integration disabled != old observations erased
 replacement system != original system identity
 ```
 
-Historical records preserve the originating system identity and integration contract version.
+Historical records preserve producer system identity and contract version.
 
 ## Reprocessing Integration Data
 
-Where preserved material permits, Pathfinder may reprocess integration records under a newer mapping version. Original processing remains historical.
+Where preserved integration material permits, Pathfinder may process old records under a newer mapping version.
+
+Original processing remains historical.
 
 ```text
-integration mapper v1 -> Result A
-integration mapper v2 -> Result B
+mapper v1 -> Result A
+mapper v2 -> Result B
 ```
 
-New processing does not rewrite what Pathfinder originally understood.
+New processing does not rewrite what Pathfinder understood originally.
 
 ## Common Truth Separations
 
 ```text
-integration                     != authority transfer
-stored in Pathfinder            != originated from Pathfinder
-authenticated peer              != unlimited peer authority
-Stronghold observation          != Pathfinder conclusion
-Stronghold allow                != benign
-Stronghold deny                 != malicious
-Pathfinder Indicator            != Stronghold policy
-Pathfinder candidate            != Stronghold command
-FI file observation             != execution
-FI hash match                   != compromise
-Atlas asset context             != Pathfinder asset authority
-Atlas no match                  != asset definitely absent
-correlation                     != identity
-matching hostname               != same asset automatically
-matching private IP             != same asset automatically
-current Atlas state             != historical asset state
-integration unavailable         != no events occurred
-no Sighting                     != negative observation
-integration health              != environment health
-schema mismatch                 != no data exists
-duplicate delivery              != repeated observation
-aggregate                       != individual event history
-Pathfinder enrichment           != original peer observation
-later Pathfinder conclusion     != originating record rewritten
-candidate action                != enforcement authority
-same database technology        != shared data ownership
-valid mTLS                      != valid semantics
-integration disabled            != history deleted
-replacement system              != original system identity
-new mapper                      != historical interpretation rewritten
+integration != authority transfer
+stored in Pathfinder != originated from Pathfinder
+authenticated peer != unlimited authority
+HealthState != CoverageState
+HealthState != failure code
+DEGRADED != AUTHENTICATION_FAILED
+Stronghold observation != Pathfinder conclusion
+Stronghold allow != benign
+Stronghold deny != malicious
+Pathfinder Indicator != Stronghold policy
+Pathfinder candidate != Stronghold command
+FI file observation != execution
+FI hash match != compromise
+Atlas context != Pathfinder asset authority
+Atlas no match != asset definitely absent
+correlation != identity
+same hostname/private IP != same asset automatically
+current Atlas state != historical Atlas state
+integration unavailable != no events occurred
+no Sighting != negative observation
+schema mismatch != no data exists
+duplicate delivery != repeated observation
+aggregate != fabricated individual events
+Pathfinder enrichment != original peer observation
+feedback Sighting != independent maliciousness corroboration automatically
+valid mTLS != valid semantics
+integration disabled != history deleted
+new mapper != historical interpretation rewritten
 ```
 
 ## Phase 0.16 Exit Decision
@@ -479,38 +638,19 @@ Phase 0.16 is satisfied when Pathfinder accepts that:
 
 1. Integration shares information without transferring domain authority.
 2. Atlas, FI, Stronghold, Pathfinder, and Guidon retain separate product authority.
-3. Pathfinder remains authoritative for the organization's record and interpretation of threat intelligence.
-4. Imported ISS records preserve their originating product and system identity.
-5. Every ISS integration is governed by a versioned contract.
-6. Stronghold remains authoritative for defined network observations and enforcement decisions.
-7. FI remains authoritative for defined file and file-system observations.
-8. Atlas remains authoritative for defined asset/environment context.
-9. Guidon remains independent and is not an initial Pathfinder runtime dependency.
-10. Pathfinder may create Sightings and Assessments from peer data without rewriting peer observations.
-11. Stronghold allow/deny decisions do not become threat classifications.
-12. FI hash/file observations do not become execution or compromise conclusions.
-13. Atlas relevance context does not become Pathfinder-owned asset truth.
-14. Historical asset/environment context must not be rewritten using current Atlas state.
-15. Cross-product correlation does not automatically establish identity.
-16. Candidate correlations preserve ambiguity where identity cannot be established.
-17. Integration outages become explicit degraded coverage states rather than negative evidence.
-18. Missing integration data never silently means the observed condition did not occur.
-19. Integration schema/version mismatches fail explicitly.
-20. Authenticated integration identity determines allowed origin authority.
-21. One ISS product cannot impersonate another through payload fields.
-22. Multi-hop delivery preserves origin and delivery identities separately.
-23. Event time and Pathfinder receipt time remain separate.
-24. Retry delivery remains distinguishable from repeated observation.
-25. Aggregate observations are not expanded into fabricated individual events.
-26. Pathfinder enrichment never rewrites original peer observations.
-27. Pathfinder candidate actions remain structurally distinct from execution commands.
-28. Downstream products retain validation, authorization, and enforcement authority.
-29. Customer/tenant boundaries remain part of correlation scope.
-30. Non-global identifiers are never assumed globally unique.
-31. Integrations follow data minimization.
-32. Products integrate through controlled interfaces rather than direct cross-product database writes.
-33. Shared database technology never implies shared schema authority.
-34. Authenticated peers remain subject to semantic validation, bounds, least privilege, and audit.
-35. One integration can be disabled or replaced without destroying historical records.
-36. Historical records preserve the integration contract version under which they were processed.
-37. Reprocessing produces new lineage rather than rewriting historical interpretation.
+3. Imported ISS records preserve producer product/system identity and contract version.
+4. Stronghold remains network-observation/enforcement authority; FI file-observation authority; Atlas asset/environment authority; Guidon recovery authority; Pathfinder threat-intelligence interpretation authority.
+5. Cross-product correlation never silently establishes identity.
+6. Missing integration data never becomes a negative observation without sufficient coverage.
+7. Integration health, coverage, operation/processing result, and detailed failure code are separate typed dimensions.
+8. `AUTHENTICATION_FAILED`, `SCHEMA_MISMATCH`, and `VERSION_UNSUPPORTED` are failure codes rather than HealthState values.
+9. Multi-hop delivery preserves origin and delivery separately.
+10. Retry delivery remains distinct from repeated real observation.
+11. Aggregates are not expanded into fabricated event histories.
+12. Pathfinder enrichment never rewrites peer observations.
+13. Cross-product feedback loops do not manufacture independent corroboration.
+14. Candidate actions remain recommendations rather than commands.
+15. ISS products integrate through controlled interfaces rather than direct cross-product database writes.
+16. Authenticated peers remain subject to semantic validation, bounds, least privilege, and audit.
+17. Integration disablement/replacement/reprocessing never erases historical records.
+18. **The original record is maintained no matter what.**
