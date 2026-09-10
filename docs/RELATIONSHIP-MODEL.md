@@ -23,8 +23,6 @@ processing history
 
 A Relationship does not inherently mean Pathfinder has proven the connection.
 
-The governing principle is:
-
 > **A relationship records a connection Pathfinder can describe. It does not automatically establish identity, causation, ownership, or attribution.**
 
 ## Relationship Identity
@@ -35,15 +33,7 @@ Every Relationship receives a Pathfinder-controlled identity.
 relationship_id = UUIDv7
 ```
 
-Relationship identity must not be derived solely from:
-
-```text
-source object
-relationship type
-target object
-```
-
-because the same objects may have materially different relationships across different times, sources, or contexts.
+Relationship identity is not derived solely from source object, relationship type, and target object because materially different relationships may exist across time, source, context, or derivation.
 
 ## Conceptual Fields
 
@@ -55,18 +45,18 @@ relationship_type
 source_object_id
 target_object_id
 directionality
-origin
+relationship_origin
 valid_from_state
-valid_from / not_known
+valid_from / NOT_KNOWN
 valid_until_state
-valid_until / not_known
+valid_until / NOT_KNOWN
 created_at
 created_by
-derivation_method / not_applicable
-derivation_version / not_applicable
+derivation_method / NOT_APPLICABLE
+derivation_version / NOT_APPLICABLE
 ```
 
-Supporting Assertions, conflicting Assertions, Assessments, and processing lineage are linked separately rather than collapsed into one field.
+Supporting Assertions, conflicting Assertions, Assessments, ATT&CK mapping metadata, and processing lineage are linked separately rather than collapsed into one field.
 
 ## Relationship Does Not Own One Confidence Value
 
@@ -74,34 +64,30 @@ A Relationship does not contain one mutable universal confidence field represent
 
 Confidence belongs to the Assertion or Assessment expressing that confidence.
 
-For example:
+Example:
 
 ```text
 Relationship:
-    Actor Alpha
-        uses
-    ExampleRAT
+    Actor Alpha uses ExampleRAT
 
 Assertion A:
-    Vendor A reports relationship
     source confidence = HIGH
 
 Assertion B:
-    Vendor B reports relationship
     source confidence = MODERATE
 
 Assessment C:
-    Pathfinder assesses relationship strongly supported
+    relationship validity = strongly supported
     confidence = HIGH
 ```
 
-These remain separate.
+These remain separate records.
 
 ## Relationship Origin
 
 Pathfinder distinguishes how a Relationship entered the intelligence model.
 
-Initial origin classes:
+Initial Relationship origins are:
 
 ```text
 SOURCE_NORMALIZED
@@ -111,13 +97,13 @@ ANALYST_RECORDED
 
 ### SOURCE_NORMALIZED
 
-One or more attributable source Assertions directly describe the relationship, even if Pathfinder normalized the source wording.
+One or more attributable source Assertions directly describe the relationship, even if Pathfinder normalized source wording into Pathfinder vocabulary.
 
 ### PATHFINDER_DERIVED
 
-Pathfinder created the Relationship from other intelligence through an explicitly defined derivation rule.
+Pathfinder created the Relationship from other intelligence under an explicitly defined derivation rule.
 
-The Relationship must preserve derivation method, version, basis records, and derivation time.
+The Relationship preserves derivation method, version, basis records, and derivation time.
 
 ### ANALYST_RECORDED
 
@@ -125,11 +111,44 @@ An authorized analyst intentionally recorded the Relationship.
 
 The analyst principal and basis remain attributable.
 
+## ATT&CK Mapping Origin Is Separate
+
+ATT&CK classification/mapping origin is a separate typed dimension and must not be collapsed into `relationship_origin`.
+
+ATT&CK mapping origins are governed by Phase 0.14 and include:
+
+```text
+ATTACK_NATIVE
+SOURCE_REPORTED
+PATHFINDER_ASSOCIATED
+LOCALLY_SUGGESTED
+LOCALLY_CONFIRMED
+ANALYST_RECORDED
+```
+
+A Relationship may therefore carry both facts where applicable.
+
+Example:
+
+```text
+relationship_origin = SOURCE_NORMALIZED
+attack_mapping_origin = ATTACK_NATIVE
+```
+
+or:
+
+```text
+relationship_origin = PATHFINDER_DERIVED
+attack_mapping_origin = PATHFINDER_ASSOCIATED
+```
+
+These dimensions answer different questions.
+
 ## Relationship Support
 
 Relationships may have many supporting or conflicting Assertions.
 
-Pathfinder should preserve explicit support links such as:
+Support links such as:
 
 ```text
 SUPPORTS
@@ -137,13 +156,13 @@ CONTRADICTS
 QUALIFIES
 ```
 
-These links are provenance/support structures. They are not themselves general threat-intelligence Relationships.
+are provenance/support structures. They are not themselves general threat-intelligence Relationships.
 
 ## Intelligence Relationships Versus Provenance Links
 
-Pathfinder must not turn every database connection into a threat-intelligence Relationship.
+Pathfinder does not turn every database connection into a threat Relationship.
 
-The following concepts belong to provenance, lifecycle, or processing structures:
+The following belong to provenance, lifecycle, or processing structures:
 
 ```text
 derived_from
@@ -157,13 +176,11 @@ normalized_by
 received_from
 ```
 
-They must not be mixed into the general intelligence relationship vocabulary merely because a graph representation could express them as edges.
+They remain separate from the threat-intelligence relationship vocabulary.
 
-## Directed Relationships
+## Directionality
 
-Most Pathfinder relationships are directional.
-
-For example:
+Most Pathfinder Relationships are directional.
 
 ```text
 ThreatActor
@@ -171,74 +188,26 @@ ThreatActor
 Malware
 ```
 
-Directional relationships preserve:
+means something materially different from the inverse.
 
-```text
-source_object_id
-relationship_type
-target_object_id
-```
-
-The order is semantically meaningful.
-
-## Inverse Presentation
-
-Pathfinder should not persist artificial inverse Relationship objects solely for query convenience.
-
-For example, Pathfinder may store:
-
-```text
-ThreatActor
-    uses
-Malware
-```
-
-A UI or API may present the inverse view as:
-
-```text
-Malware
-    used_by
-ThreatActor
-```
-
-without creating a second independent Relationship.
+Pathfinder should not persist artificial inverse Relationship objects solely for query convenience. A UI/API may render an inverse presentation without creating a second authoritative Relationship.
 
 ## Symmetric Relationships
 
-Some relationships are inherently symmetric.
-
-Initial examples may include:
+Initial symmetric relationship candidates include:
 
 ```text
 possibly_related
 shares_infrastructure_with
 ```
 
-For a symmetric Relationship, endpoint order does not change meaning.
+Symmetric Relationship implementations should use deterministic endpoint ordering for identity/deduplication.
 
-The implementation should use deterministic endpoint ordering for symmetric relationship identity/deduplication.
-
-## No Implied Symmetry
-
-Relationships are not symmetric unless their type explicitly defines symmetry.
-
-```text
-A uses B
-    !=
-B uses A
-```
-
-Likewise:
-
-```text
-Domain resolves_to IP
-```
-
-does not create a second stored inverse Relationship.
+Relationships are not symmetric unless their registry definition says so.
 
 ## No Implied Transitivity
 
-No Pathfinder Relationship is transitive unless a future contract explicitly defines it as transitive.
+No Pathfinder Relationship is transitive unless a future explicit contract defines it as transitive.
 
 ```text
 A associated_with B
@@ -247,28 +216,33 @@ B associated_with C
 A associated_with C
 ```
 
-Derived relationships require explicit derivation rules and provenance.
+Graph reachability is not sufficient to create a new intelligence Relationship.
 
 ## Initial Relationship Vocabulary
 
-Pathfinder v1 should begin with a deliberately small relationship vocabulary.
+Pathfinder begins with a deliberately small vocabulary.
 
 ### `uses`
 
 Meaning: the source object is reported or assessed as using the target object.
 
-Initial valid directions include:
+Initial valid directions are:
 
 ```text
 ThreatActor -> Malware
 ThreatActor -> Tool
 ThreatActor -> Infrastructure
+ThreatActor -> Technique
+
 Campaign -> Malware
 Campaign -> Tool
 Campaign -> Infrastructure
+Campaign -> Technique
 ```
 
-`uses` does not imply ownership.
+The Technique endpoints are explicitly included to reconcile the ATT&CK model.
+
+`uses` does not imply ownership, exclusive control, actor identity, or that every intrusion involving the source object uses the target.
 
 ### `communicates_with`
 
@@ -281,7 +255,9 @@ Malware -> Infrastructure
 Malware -> network Observable
 ```
 
-`communicates_with != controlled_by`.
+```text
+communicates_with != controlled_by
+```
 
 ### `resolves_to`
 
@@ -294,13 +270,11 @@ Domain -> IPv4
 Domain -> IPv6
 ```
 
-This relationship is inherently time-sensitive.
-
-Current DNS resolution must never rewrite historical resolution.
+This Relationship is time-sensitive. Current DNS must not rewrite historical DNS state.
 
 ### `implements`
 
-Meaning: Malware or a Tool is reported or assessed as implementing behavior represented by a Technique.
+Meaning: Malware or Tool is reported or assessed as implementing behavior represented by a Technique.
 
 Initial directions:
 
@@ -309,7 +283,9 @@ Malware -> Technique
 Tool -> Technique
 ```
 
-`implements Technique != Technique observed locally`.
+```text
+implements Technique != Technique observed locally
+```
 
 ### `exploits`
 
@@ -324,19 +300,21 @@ Malware -> Vulnerability
 Tool -> Vulnerability
 ```
 
-`Actor exploits vulnerability != local asset exploited`.
+```text
+Actor exploits Vulnerability != local asset exploited
+```
 
 ### `associated_with`
 
-Meaning: a source establishes some association but does not justify a more precise relationship.
+Meaning: a source or Pathfinder Assessment establishes an association but does not justify a more precise relationship.
 
-This type must be used conservatively and must not become a generic escape hatch for poorly modeled data.
+This type must be used conservatively and must not become a generic escape hatch for poorly modeled semantics.
 
 ### `possibly_related`
 
-Meaning: Pathfinder or a source has a basis to consider two intelligence objects potentially related but cannot establish a stronger relationship.
+Meaning: Pathfinder or a source has a basis to consider two objects potentially related but cannot establish a stronger relationship.
 
-This relationship is symmetric and explicitly uncertain.
+This Relationship is symmetric and explicitly uncertain.
 
 ### `shares_infrastructure_with`
 
@@ -348,7 +326,7 @@ It does not establish same operator, same campaign, same actor, coordination, or
 
 ## Deferred Relationship Types
 
-The following should remain deferred until their semantics and valid endpoints are explicitly defined:
+The following remain deferred until semantics and endpoint rules are explicitly defined:
 
 ```text
 owns
@@ -361,17 +339,15 @@ originates_from
 compromised_by
 ```
 
-In particular:
+> **Pathfinder v1 does not have a generic `same_as` Relationship.**
 
-> **Pathfinder v1 should not have a generic `same_as` Relationship.**
-
-Identity resolution deserves its own future contract.
+Identity resolution deserves a separate contract.
 
 ## Relationship Type Registry
 
-Relationship types must come from a versioned Pathfinder-controlled registry.
+Relationship types come from a versioned Pathfinder-controlled registry.
 
-Each Relationship type definition should establish:
+Each registry entry defines:
 
 ```text
 name
@@ -380,43 +356,37 @@ directionality
 allowed source object types
 allowed target object types
 time semantics
-whether symmetry applies
-whether inverse presentation exists
-whether automated derivation is allowed
-whether analyst creation is allowed
+symmetry
+inverse presentation behavior
+automated derivation allowed / denied
+analyst creation allowed / denied
 ```
 
-Arbitrary caller-defined Relationship strings must not become authoritative Pathfinder semantics.
+Arbitrary caller-defined relationship strings do not become authoritative Pathfinder semantics.
 
 ## Endpoint Validation
 
-Relationship creation must validate that its endpoints are permitted for the Relationship type.
+Relationship creation validates endpoints against the registry.
 
-For example:
-
-```text
-Domain
-    resolves_to
-IPv4
-```
-
-may be valid.
-
-But:
+Valid example:
 
 ```text
-ThreatActor
-    resolves_to
-Malware
+Domain resolves_to IPv4
 ```
 
-must fail structural validation.
+Invalid example:
+
+```text
+ThreatActor resolves_to Malware
+```
+
+ATT&CK mappings do not bypass endpoint validation.
 
 ## Time Semantics
 
-Threat relationships may change over time.
+Threat Relationships may change over time.
 
-Pathfinder must preserve meaningful temporal bounds without inventing them.
+Pathfinder preserves meaningful temporal bounds without inventing them.
 
 Conceptually:
 
@@ -433,37 +403,39 @@ valid_until_state:
     NOT_APPLICABLE
 ```
 
-Pathfinder must not use `received_at` as `valid_from` merely because no better date exists.
+Pathfinder must not use `received_at` as `valid_from` merely because a more meaningful time is unavailable.
 
-`receipt time != relationship start time`.
+```text
+receipt time != relationship start time
+```
 
-## Point-in-Time Relationships
+## Point-in-Time Observations
 
-Some Relationships may be based on a specific observation rather than a broad interval.
+A point Sighting may support a Relationship without inflating that point observation into an indefinite time range.
 
-Pathfinder must not inflate one point observation into an indefinite relationship.
+Temporal inference requires an explicit rule and preserved basis.
 
 ## Relationship Deduplication
 
-Pathfinder must not deduplicate Relationships solely because source object, relationship type, and target object match.
+Pathfinder does not deduplicate Relationships solely because source object, type, and target object match.
 
-Time context and semantics may make apparently identical relationships materially distinct.
+Time and semantic scope may make apparently identical edges materially distinct.
 
-At the same time, repeated sources describing the same semantic Relationship should normally attach additional Assertions/support rather than blindly create one Relationship per feed record.
+Conversely, several sources describing the same semantic Relationship should normally attach additional Assertions/support rather than blindly creating one Relationship per feed record.
 
-The governing objective is:
+The objective is:
 
 ```text
 deduplicate semantic relationship
-    while
+while
 preserving every attributable source claim
 ```
 
 ## Derived Relationships
 
-Pathfinder-derived Relationships require explicit derivation rules.
+Pathfinder-derived Relationships require explicit, versioned derivation rules.
 
-A derivation must preserve:
+A derivation preserves:
 
 ```text
 method
@@ -473,45 +445,48 @@ time
 result
 ```
 
-Pathfinder must not silently create relationships merely because a graph path exists.
+Pathfinder must not create a Relationship merely because a graph path, report co-occurrence, temporal proximity, or shared infrastructure exists.
 
-`graph path exists != intelligence relationship established`.
+## Derivation Bounds
 
-## Derivation Depth
+Automated derivation is bounded.
 
-Pathfinder must not perform unbounded relationship inference.
-
-Every automated derivation method defines allowed input relationship types, maximum derivation depth, required basis, output relationship type, and failure behavior.
+Each derivation method defines allowed input relationship types, maximum depth, required basis, output type, and failure behavior.
 
 ## Relationship Candidates
 
-Where Pathfinder derives a possible connection that does not meet the standard for a normal Relationship, it should prefer an explicitly uncertain relationship such as `possibly_related` or retain the result as a candidate processing artifact until a later workflow contract defines promotion.
+Where a possible connection does not meet the standard for a stronger Relationship, Pathfinder should use an explicitly uncertain type such as `possibly_related` or retain the result as a candidate processing record until a later workflow promotes it.
+
+Candidate correlation remains distinct from identity.
 
 ## Relationship Assessments
 
-Relationships may be assessed just like other Pathfinder objects.
+Relationships may be Assessment subjects.
 
-A conflicting Assessment may also exist.
+A Relationship may simultaneously have:
 
-The Relationship itself does not need to be deleted because an Assessment later disputes it.
+```text
+supporting Assertions
+contradicting Assertions
+qualifying Assertions
+machine Assessments
+analyst Assessments
+open/resolved IntelligenceConflict
+```
 
-## Relationship Conflict
-
-A Relationship may simultaneously have supporting Assertions, contradicting Assertions, qualifying Assertions, Pathfinder Assessments, and analyst Assessments.
-
-Pathfinder preserves all of them.
+The Relationship itself is not deleted because later analysis disputes it.
 
 ## Source Wording Versus Pathfinder Vocabulary
 
-The original source may use wording different from Pathfinder's relationship vocabulary.
+The original source may use wording different from Pathfinder's normalized relationship vocabulary.
 
-Pathfinder preserves both the original source assertion and normalized Relationship.
+Pathfinder preserves the source Assertion and normalized Relationship separately.
 
-The normalized vocabulary must never replace the original source representation.
+Normalization never replaces the original source representation.
 
 ## Relationship and Attribution
 
-Actor attribution is particularly sensitive.
+Actor attribution is especially sensitive.
 
 ```text
 Actor A uses Malware X
@@ -521,31 +496,60 @@ Campaign B associated_with Actor A
 Campaign B attributed_to Actor A
 ```
 
-`attributed_to` remains deferred until Pathfinder defines explicit attribution semantics.
+`attributed_to` remains deferred until explicit attribution semantics exist.
 
-Pathfinder must not manufacture attribution by combining weaker relationships.
+Pathfinder does not manufacture attribution by composing weaker Relationships.
 
 ## Relationship and Infrastructure
 
-Shared infrastructure does not automatically prove actor identity, collaboration, coordination, or ownership.
+Shared infrastructure may reflect shared hosting, cloud/CDN use, VPN exit nodes, compromised infrastructure, commodity services, or reassigned addresses.
 
-The infrastructure may represent shared hosting, public cloud, VPN exit, CDN, compromised infrastructure, commodity services, or reassigned addresses.
+```text
+shared infrastructure != common operator
+```
 
-Pathfinder preserves what it can establish and stops there.
+## ISS Observations
 
-## Relationship and ISS Observations
+Stronghold, FI, Atlas, and other approved ISS products retain their own domain authority.
 
-ISS-product observations may contribute relationship context.
+Their observations may create Sightings and later support Relationships or Assessments.
 
-Stronghold observations or FI observations may create Sightings under the Sighting Model and may later support relationships or assessments.
+They do not silently create compromise, attribution, or identity conclusions.
 
-They do not automatically create compromise or attribution conclusions.
+## ATT&CK Relationship Rules
+
+ATT&CK is optional classification/reference metadata.
+
+Relationships such as:
+
+```text
+ThreatActor -> uses -> Technique
+Campaign -> uses -> Technique
+Malware -> implements -> Technique
+Tool -> implements -> Technique
+```
+
+remain attributable intelligence claims/mappings.
+
+They do not establish:
+
+```text
+Technique occurred locally
+actor identity proven
+malware identity proven
+compromise proven
+response authorized
+```
+
+`ATT&CK NOT_MAPPED` is a valid state and causes no downgrade to threat significance, confidence, operational relevance, or escalation priority.
 
 ## No Relationship-by-Proximity
 
-Pathfinder must never infer relationships merely because objects appear near one another in the same report, API response, paragraph, incident bundle, graph neighborhood, or timestamp window unless an explicit parser or derivation contract defines why that proximity establishes a relationship.
+Pathfinder does not infer Relationships merely because objects occur near one another in the same report, response, paragraph, incident bundle, graph neighborhood, or timestamp window unless an explicit parser/derivation contract defines why that context establishes the Relationship.
 
-`co-occurrence != relationship`.
+```text
+co-occurrence != relationship
+```
 
 ## Common Truth Separations
 
@@ -557,62 +561,44 @@ Relationship != causation
 Relationship != compromise
 Relationship != Assessment
 Relationship != Assertion
+relationship_origin != attack_mapping_origin
 supporting Assertion != proven Relationship
 multiple supporting Assertions != independent corroboration
-inverse query view != second Relationship
+inverse presentation != second authoritative Relationship
 shared infrastructure != same actor
-shared malware != same actor
-same campaign != same organization
-co-occurrence != relationship
-graph path != established relationship
-association != attribution
-possibly_related != confirmed relationship
+co-occurrence != Relationship
+graph path != established Relationship
+possibly_related != confirmed identity
 uses != owns
 communicates_with != controlled_by
 implements Technique != Technique observed locally
+ThreatActor uses Technique != actor observed locally
+Campaign uses Technique != attack sequence required
 exploits Vulnerability != local exploitation observed
-current relationship != historical relationship
-receipt time != relationship start time
-point observation != indefinite relationship
-relationship endpoint match != semantic duplicate
-new relationship interpretation != historical source rewritten
-derived relationship != directly reported relationship
-analyst-recorded relationship != source-reported relationship
+current Relationship != historical Relationship
+receipt time != Relationship start time
+point observation != indefinite Relationship
+new interpretation != historical source rewritten
 ```
-
-## Object-Model Refinements
-
-Phase 0.7 refines earlier drafts in three ways.
-
-First, Relationship confidence is represented through attributable Assertions and Assessments rather than one mutable confidence field on the Relationship.
-
-Second, provenance/lifecycle edges such as `derived_from`, `supported_by`, `supersedes`, and `withdraws` remain separate from the threat-intelligence Relationship vocabulary.
-
-Third, generic identity relationships such as `same_as` are deferred until an explicit identity-resolution contract exists.
 
 ## Phase 0.7 Exit Decision
 
-Phase 0.7 is satisfied when Pathfinder accepts:
+Phase 0.7 is satisfied when Pathfinder accepts that:
 
-1. Relationship as a first-class UUIDv7 Pathfinder object.
-2. Relationship endpoints and type are structurally validated.
-3. Relationship types come from a versioned Pathfinder-controlled registry.
-4. Directed and symmetric Relationships have explicit different semantics.
-5. Inverse query presentation does not create duplicate authoritative Relationships.
-6. No Relationship is assumed transitive by default.
-7. `SOURCE_NORMALIZED`, `PATHFINDER_DERIVED`, and `ANALYST_RECORDED` remain distinguishable origins.
-8. Supporting, contradicting, and qualifying Assertions remain attributable.
-9. Provenance/lifecycle links remain separate from threat-intelligence Relationships.
-10. Relationship confidence belongs to Assertions/Assessments rather than one mutable universal field.
-11. Temporal bounds remain explicit and unknown time is never manufactured.
-12. Receipt time is never silently substituted for relationship start time.
-13. Point observations are not silently expanded into indefinite relationships.
-14. Semantic deduplication preserves every underlying source Assertion.
-15. Derived Relationships preserve method, version, basis, and time.
-16. Graph proximity or graph reachability does not itself establish a Relationship.
-17. Automated derivation is bounded and explicitly defined.
-18. `possibly_related` remains explicitly uncertain.
-19. Shared infrastructure does not establish common ownership, actor identity, or coordination.
-20. Attribution is not manufactured from weaker relationships.
-21. `same_as` and other identity-merging semantics remain deferred.
-22. ISS-product observations may inform Pathfinder relationships but do not silently create compromise or attribution conclusions.
+1. Relationship is a first-class UUIDv7 record.
+2. Relationship endpoints/types are structurally validated by a versioned registry.
+3. `SOURCE_NORMALIZED`, `PATHFINDER_DERIVED`, and `ANALYST_RECORDED` are Relationship origins.
+4. ATT&CK mapping origin remains a separate typed dimension.
+5. `uses` explicitly supports ThreatActor/Campaign -> Technique as well as the other frozen endpoints.
+6. Relationship confidence belongs to Assertions/Assessments rather than one mutable field.
+7. Directed/symmetric behavior is explicit; inverse presentation does not create duplicate records.
+8. No Relationship is transitive by default.
+9. Provenance/lifecycle links remain outside the threat-intelligence relationship vocabulary.
+10. Time bounds are explicit and are never manufactured from receipt time.
+11. Semantic deduplication preserves all underlying source Assertions.
+12. Derived Relationships preserve method, version, basis, time, and result.
+13. Graph proximity, co-occurrence, or shared infrastructure do not create unqualified Relationships.
+14. `possibly_related` remains explicitly uncertain.
+15. `same_as` and other identity-merging semantics remain deferred.
+16. ATT&CK mappings never become compromise, identity, or enforcement authority.
+17. **The original record is maintained no matter what.**
