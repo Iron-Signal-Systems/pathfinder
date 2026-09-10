@@ -1,68 +1,93 @@
 # Pathfinder Roadmap
 
-Pathfinder is currently pre-release and under active design.
+Pathfinder is pre-release and under active development.
 
-The roadmap intentionally begins with intelligence semantics, provenance, source preservation, trust boundaries, and failure behavior before implementation breadth.
+The roadmap intentionally begins with intelligence semantics, provenance, source preservation, trust boundaries, failure behavior, and historical integrity before implementation breadth.
 
-## Phase 0 — Threat Intelligence Foundation
-
-Phase 0 freezes the core meaning of Pathfinder before production implementation begins.
-
-### 0.1 Define the Intelligence Mission and Consumers
-
-Define what Pathfinder is responsible for and who consumes its output.
-
-Initial consumer classes may include:
+## Current Status
 
 ```text
-human analysts
-Pathfinder query/API clients
-Atlas
-Stronghold
-FI
-future approved ISS integrations
+Phase 0 — Threat Intelligence Foundation
+    COMPLETE
+
+Phase 0 Reconciliation / Exit Review
+    COMPLETE
+
+Phase 0 Exit Gate
+    PASS
+
+Current work
+    Phase 1.1 — Runtime and Repository Foundation
 ```
 
-Exit criteria:
+The governing reconciliation document is:
 
-- Pathfinder product authority is explicit;
-- consumer boundaries are explicit; and
-- intelligence does not silently become enforcement authority.
+[`docs/PHASE-0-RECONCILIATION-EXIT.md`](docs/PHASE-0-RECONCILIATION-EXIT.md)
 
-### 0.2 Define the Core Intelligence Object Model
+Where an earlier Phase 0 description conflicts with a refinement frozen by that document, the reconciliation document governs.
 
-Freeze the initial meaning and ownership of objects such as:
+---
+
+# Phase 0 — Threat Intelligence Foundation — COMPLETE
+
+Phase 0 froze Pathfinder's core meaning before production implementation.
+
+## 0.1 Intelligence Mission and Consumers
+
+Frozen in [`docs/INTELLIGENCE-MISSION.md`](docs/INTELLIGENCE-MISSION.md).
+
+Key result:
+
+> **Pathfinder owns the organization's record and interpretation of threat intelligence.**
+
+Product integration does not transfer authority, and intelligence does not silently become enforcement authority.
+
+## 0.2 Core Intelligence Object Model
+
+Frozen in [`docs/CORE-INTELLIGENCE-MODEL.md`](docs/CORE-INTELLIGENCE-MODEL.md) and refined by later contracts plus the Phase 0 reconciliation.
+
+The reconciled object families are:
 
 ```text
-Source
-Source Record
-Observable
-Indicator
-Sighting
-Assessment
-Relationship
-Threat Actor
-Campaign
-Malware
-Tool
-Vulnerability
-Technique
-Infrastructure
-Report
+SOURCE / PROVENANCE
+    Source
+    SourceCollection
+    RetrievalEvent
+    SourceArtifact
+    SourceRecord
+
+INTELLIGENCE
+    Assertion
+    Observable
+    Indicator
+    Sighting
+    Assessment
+    Relationship
+    ThreatActor
+    Campaign
+    Malware
+    Tool
+    Vulnerability
+    Technique
+    Infrastructure
+    Report
+
+INTELLIGENCE STATE
+    LifecycleEvent
+    IntelligenceConflict
+
+SYSTEM HISTORY
+    ChangeRecord
+    ChangeSet
+    AuditEvent
+    ProcessingRecord
 ```
 
-Exit criteria:
+## 0.3 Observable Model
 
-- object identity is defined;
-- required fields are defined;
-- lifecycle ownership is defined; and
-- object types do not silently imply one another.
+Frozen in [`docs/OBSERVABLE-MODEL.md`](docs/OBSERVABLE-MODEL.md).
 
-### 0.3 Define the Observable Model
-
-Define supported observable classes and normalization rules.
-
-Initial candidates include:
+Initial observable classes:
 
 ```text
 IPv4
@@ -70,383 +95,392 @@ IPv6
 domain
 URL
 SHA-256
-email address
-certificate fingerprint
+email
+X.509 certificate SHA-256 fingerprint
 ```
 
-Exit criteria:
+Governing rule:
 
-- canonical representation rules are frozen;
-- malformed and unsupported inputs remain distinguishable; and
-- an observable remains semantically neutral unless separately assessed.
+> **Normalize representation, not meaning.**
 
-### 0.4 Define the Assertion and Assessment Model
+## 0.4 Assertion and Assessment Model
 
-Define how Pathfinder records assertions and conclusions.
-
-Preserve distinctions among:
+Frozen in [`docs/ASSERTION-ASSESSMENT-MODEL.md`](docs/ASSERTION-ASSESSMENT-MODEL.md) and reconciled at the Phase 0 exit gate.
 
 ```text
-source assertion
-machine-derived assessment
-human analyst assessment
-corroborated assessment
-conflicting assessment
-superseding assessment
+Assertion
+    attributable claim
+
+Assessment
+    Pathfinder-recorded human or machine judgment
 ```
 
-Exit criteria:
+External-source judgments remain Assertions. Assessment authorities are `HUMAN_ANALYST` and `PATHFINDER_PROCESS`. Sighting is an allowed Assessment subject where the assessment type permits it.
 
-- assessment authority is attributable;
-- historical assessments are preserved; and
-- changed understanding does not rewrite prior understanding.
+## 0.5 Source and Provenance Model
 
-### 0.5 Define the Source and Provenance Model
+Frozen in [`docs/SOURCE-PROVENANCE-MODEL.md`](docs/SOURCE-PROVENANCE-MODEL.md) and refined by Phase 0.11.
 
-Freeze the provenance fields needed to work backward from a Pathfinder conclusion to its source.
-
-Candidate provenance includes:
+Canonical chain:
 
 ```text
-provider
-feed / collection
-source record identifier
-source publication time
-source observation time
-retrieval time
-receipt time
-source location
-source marking
-source format
-source hash
-parser version
-normalizer version
-processing time
+Source
+  ↓
+SourceCollection
+  ↓
+RetrievalEvent
+  ↓
+SourceArtifact
+  ↓
+SourceRecord
+  ↓
+Assertion
 ```
 
-Exit criteria:
+`SourceArtifact` owns exact preserved acquired bytes. `SourceRecord` is the logical source item inside or represented by that artifact.
 
-- source identity is defined;
-- processing lineage is defined; and
-- provenance survives normalization and deduplication.
+## 0.6 Confidence, Reliability, and Corroboration
 
-### 0.6 Define Confidence, Reliability, and Corroboration
+Frozen in [`docs/CONFIDENCE-RELIABILITY-CORROBORATION.md`](docs/CONFIDENCE-RELIABILITY-CORROBORATION.md).
 
-Define separate semantics for:
+> **Confidence describes a judgment. Reliability describes a source. Corroboration describes support. They are not interchangeable.**
 
-```text
-source reliability
-information confidence
-analyst confidence
-corroboration
-age
-recency
-independent-source count
-```
+Source reliability is represented as historical Assessment rather than one mutable source truth field.
 
-Exit criteria:
+## 0.7 Relationship Model
 
-- Pathfinder does not rely on one unexplained risk score;
-- duplicated upstream intelligence cannot inflate independent corroboration; and
-- confidence never silently becomes authorization.
+Frozen in [`docs/RELATIONSHIP-MODEL.md`](docs/RELATIONSHIP-MODEL.md) and refined by ATT&CK/reconciliation.
 
-### 0.7 Define the Relationship Model
-
-Freeze relationship identity, directionality, time bounds, provenance, and confidence semantics.
-
-Examples include:
+Initial relationship vocabulary includes:
 
 ```text
 uses
-associated_with
 communicates_with
 resolves_to
-hosts
-targets
 implements
+exploits
+associated_with
 possibly_related
 shares_infrastructure_with
 ```
 
-Exit criteria:
-
-- correlation remains distinguishable from identity;
-- direct source relationships remain distinguishable from derived relationships; and
-- time-dependent relationships do not become timeless facts.
-
-### 0.8 Define the Sighting Model
-
-Define what constitutes a sighting and what a sighting does not prove.
-
-Exit criteria:
-
-- source system is attributable;
-- observation time is explicit;
-- sighting provenance is preserved; and
-- a sighting does not automatically establish compromise, malicious intent, or attribution.
-
-### 0.9 Define Intelligence Aging, Expiration, Revocation, and Supersession
-
-Freeze lifecycle rules for current and historical intelligence.
-
-Candidate states include:
+`uses` additionally permits the reconciled ATT&CK directions:
 
 ```text
-active
-aging
-expired
-revoked
-superseded
-disputed
-conflicted
+ThreatActor -> Technique
+Campaign    -> Technique
 ```
 
-Exit criteria:
-
-- expiration meaning is explicit;
-- expiration does not imply benign status;
-- revocation does not erase history; and
-- historical intelligence remains available according to retention policy.
-
-### 0.10 Define Conflicting-Intelligence Behavior
-
-Define how Pathfinder represents disagreement between sources and assessments.
-
-Exit criteria:
-
-- conflicting assertions may coexist;
-- conflict remains attributable;
-- disagreement is not hidden behind averaging; and
-- human review can be requested without manufacturing a synthetic conclusion.
-
-### 0.11 Define the Raw-Source Preservation Contract
-
-Define which source records must be preserved, in what representation, with what integrity metadata, and for how long.
-
-Exit criteria:
-
-- preservation occurs before destructive transformation where required;
-- raw source and derived intelligence are separate data classes;
-- parser upgrades cannot rewrite original source history; and
-- retention/destruction authority is explicit.
-
-### 0.12 Define the STIX 2.1 Interoperability Boundary
-
-Define import/export behavior without making STIX the Pathfinder internal truth model.
-
-Exit criteria:
-
-- external identifiers are handled explicitly;
-- translation loss is visible;
-- Pathfinder provenance is not silently discarded; and
-- syntactically valid STIX is not equated with trusted intelligence.
-
-### 0.13 Define the TAXII 2.1 Interoperability Boundary
-
-Define client/server transport behavior, authentication, source identity, acceptance, retry, and failure semantics.
-
-Exit criteria:
-
-- transport success remains distinct from intelligence acceptance;
-- partial retrieval and rate limiting are explicit states; and
-- source authentication does not automatically establish information truth.
-
-### 0.14 Define the MITRE ATT&CK Relationship Model
-
-Define how Pathfinder records source-reported, analyst-assigned, and locally observed ATT&CK relationships.
-
-Exit criteria:
-
-- technique association remains distinct from local technique observation;
-- mappings preserve provenance; and
-- mappings are not manufactured merely to increase coverage.
-
-### 0.15 Define API Trust and Security Boundaries
-
-Define human, service, source, publication, integration, and administrative authority.
-
-Exit criteria:
-
-- authentication and authorization remain separate;
-- read, assess, publish, administer, export, and future integration authorities are independently definable; and
-- no credential silently becomes universal authority.
-
-### 0.16 Define ISS Product Integration Boundaries
-
-Freeze the authority relationship between Pathfinder and other ISS systems.
-
-Initial direction:
+The following remain deferred until their semantics are explicitly defined:
 
 ```text
-Atlas
-    authoritative asset/environment context
-
-Stronghold
-    authoritative network observations and decisions
-
-FI
-    authoritative file observations
-
-Pathfinder
-    authoritative Pathfinder intelligence records,
-    assessments, relationships, provenance, and lifecycle
+owns
+controls
+same_as
+targets
+hosts
+attributed_to
+originates_from
+compromised_by
 ```
 
-Exit criteria:
+## 0.8 Sighting Model
 
-- integrations exchange explicitly defined records;
-- correlation remains derived where applicable; and
-- Pathfinder cannot silently take control of another product's authority.
+Frozen in [`docs/SIGHTING-MODEL.md`](docs/SIGHTING-MODEL.md).
 
-### 0.17 Define Analyst Override and Review Behavior
+> **A sighting records an observation. It does not silently become a conclusion.**
 
-Define how analysts dispute, annotate, supersede, confirm, or reject derived assessments.
+Negative observation semantics require known coverage and are not manufactured from missing Sightings.
 
-Exit criteria:
+## 0.9 Intelligence Lifecycle
 
-- analyst identity/authority is preserved;
-- machine and human assessments remain distinguishable;
-- historical assessment state remains available; and
-- override does not silently alter preserved source material.
-
-### 0.18 Define Audit and Engineering Completeness Requirements
-
-Define the minimum processing/audit history required to answer:
-
-> **When this fails at 2:00 AM, will Pathfinder tell the operator exactly what it received, where it came from, what it could validate, what it understood, how it reached that interpretation, what remains uncertain, and what failed?**
-
-Exit criteria:
-
-- source receipt and processing state are reconstructable;
-- failures and retries remain visible;
-- index/search completeness is knowable; and
-- downstream recommendations remain distinguishable from downstream actions.
-
-## Phase 0 Exit Gate
-
-Phase 0 is complete only when the project has frozen enough contracts to implement a narrow first system without guessing at the meaning of its records.
-
-At minimum, the gate should establish:
+Frozen in [`docs/INTELLIGENCE-LIFECYCLE-MODEL.md`](docs/INTELLIGENCE-LIFECYCLE-MODEL.md).
 
 ```text
-product authority
-object model
-observable model
-source/provenance model
-assessment model
-relationship model
-sighting model
-confidence/reliability model
-lifecycle model
-conflict model
-source-preservation contract
-STIX/TAXII boundaries
-ATT&CK boundary
-security/authorization boundary
-ISS integration boundary
-failure/audit requirements
+ACTIVE
+AGING
+EXPIRED
+REVOKED
+SUPERSEDED
+DISPUTED
+CONFLICTED
 ```
 
-Phase 0 should not be considered complete merely because documentation exists. The contracts must be internally consistent and reviewable against representative source and correlation examples.
+Lifecycle changes current applicability. It does not rewrite what historically existed.
 
-## Phase 1 — Minimal Intelligence Core
+## 0.10 Conflicting Intelligence
 
-Phase 1 implements the smallest complete Pathfinder system that can prove the Phase 0 model.
+Frozen in [`docs/CONFLICTING-INTELLIGENCE.md`](docs/CONFLICTING-INTELLIGENCE.md).
 
-### 1.1 Runtime and Repository Foundation
+`IntelligenceConflict` is first-class. Pathfinder does not use universal majority-wins, highest-confidence-wins, or newest-record-wins conflict resolution.
 
-Establish the supported runtime, repository layout, configuration model, service identity expectations, dependency policy, local state paths, logging boundaries, and validation entry point before broad feature implementation.
+## 0.11 Raw-Source Preservation
 
-Initial implementation direction:
+Frozen in [`docs/RAW-SOURCE-PRESERVATION.md`](docs/RAW-SOURCE-PRESERVATION.md).
+
+> **Preserve what was received before deciding what it means.**
+
+`SourceArtifact` preserves exact acquired bytes before semantic interpretation. Parser or mapper upgrades never replace the original artifact.
+
+## 0.12 STIX 2.1 Interoperability
+
+Frozen in [`docs/STIX-2.1-INTEROPERABILITY.md`](docs/STIX-2.1-INTEROPERABILITY.md).
+
+STIX is an interchange boundary, not Pathfinder's internal truth or storage model.
+
+## 0.13 TAXII 2.1 Interoperability
+
+Frozen in [`docs/TAXII-2.1-INTEROPERABILITY.md`](docs/TAXII-2.1-INTEROPERABILITY.md).
+
+Transport, preservation, STIX validation, Pathfinder mapping, commit, pagination, retry, and checkpoint state remain distinct.
+
+## 0.14 MITRE ATT&CK Relationship Model
+
+Frozen in [`docs/MITRE-ATTACK-RELATIONSHIP-MODEL.md`](docs/MITRE-ATTACK-RELATIONSHIP-MODEL.md).
+
+> **ATT&CK is a classification aid, not a prerequisite for understanding or proving a compromise.**
+
+`NOT_MAPPED` never reduces threat significance, confidence, relevance, or escalation priority.
+
+## 0.15 API Trust and Security Boundaries
+
+Frozen in [`docs/API-TRUST-SECURITY-BOUNDARIES.md`](docs/API-TRUST-SECURITY-BOUNDARIES.md).
+
+Authentication, authorization, analyst authority, product authority, administration, export, and enforcement remain separate.
+
+## 0.16 ISS Product Integration Boundaries
+
+Frozen in [`docs/ISS-PRODUCT-INTEGRATION-BOUNDARIES.md`](docs/ISS-PRODUCT-INTEGRATION-BOUNDARIES.md).
 
 ```text
-Go
-PostgreSQL
-minimal justified dependencies
-explicit configuration
-repository-owned validation
+Atlas       -> asset/environment authority
+FI          -> file observation authority
+Stronghold  -> network observation/enforcement authority
+Pathfinder  -> threat-intelligence record/interpretation authority
+Guidon      -> backup/recovery authority
 ```
 
-### 1.2 PostgreSQL Schema
+ISS products integrate through explicit interfaces rather than direct cross-product database writes.
 
-Implement relational storage for the frozen Phase 0 model.
+## 0.17 Analyst Override, Review, and Change History
 
-Relationships remain first-class even though the initial implementation is relational.
+Frozen in [`docs/ANALYST-OVERRIDE-REVIEW-CHANGE-HISTORY.md`](docs/ANALYST-OVERRIDE-REVIEW-CHANGE-HISTORY.md) and tightened by the Phase 0 reconciliation.
 
-Do not introduce graph infrastructure unless real Pathfinder workloads demonstrate a requirement.
+> **The original record is maintained no matter what.**
 
-### 1.3 Source Preservation
+Analyst changes move forward through new attributable records. Git-style `ChangeRecord` and `ChangeSet` history supports reconstructable `log` / `show` / `diff` behavior.
 
-Implement the Phase 0 raw-source preservation contract for the first supported source.
+A committed `ChangeSet` is atomic.
 
-### 1.4 First External Collector
+There is no normal reset-hard or force-push equivalent for authoritative intelligence history.
+
+## 0.18 Audit and Engineering Completeness
+
+Frozen in [`docs/AUDIT-ENGINEERING-COMPLETENESS.md`](docs/AUDIT-ENGINEERING-COMPLETENESS.md).
+
+> **If Pathfinder cannot prove that an operation completed, it must not report the operation as complete.**
+
+> **If Pathfinder cannot establish coverage, absence must remain unknown rather than becoming a negative conclusion.**
+
+Derived indexes and current views are rebuildable. Original historical records are not.
+
+## Phase 0 Exit Reconciliation
+
+Frozen in [`docs/PHASE-0-RECONCILIATION-EXIT.md`](docs/PHASE-0-RECONCILIATION-EXIT.md).
+
+The reconciliation resolves late-stage refinements without erasing the earlier design history. It freezes:
+
+```text
+canonical object families
+SourceArtifact / SourceRecord ownership
+permanent historical-record behavior
+Assessment authorities and Sighting assessment support
+current-view selection semantics
+ATT&CK / Relationship registry interaction
+typed state namespaces
+atomic committed ChangeSets
+ChangeRecord / AuditEvent / ProcessingRecord separation
+Source reliability representation
+Phase 1 schema scope
+```
+
+Phase 0 exit gate result:
+
+```text
+PASS
+```
+
+---
+
+# Phase 1 — Minimal Intelligence Core
+
+Phase 1 implements the smallest complete Pathfinder system capable of proving the Phase 0 contracts.
+
+The objective is not feature count. The objective is one trustworthy vertical slice.
+
+## 1.1 Runtime and Repository Foundation
+
+Before application feature code, establish the environment in which Pathfinder will live.
+
+Freeze and implement the groundwork for:
+
+```text
+supported operating environment
+service/runtime identity
+repository layout
+Go module/toolchain direction
+configuration contract
+filesystem/state paths
+PostgreSQL dependency/version direction
+startup/readiness behavior
+logging boundary
+secret-handling boundary
+migration entry point
+validation/test entry point
+build/release expectations
+```
+
+Do not begin with broad domain schema or feed code before the runtime/dependency/configuration foundation is reviewable.
+
+### 1.1 Exit Gate
+
+Phase 1.1 is complete when a developer/operator can determine:
+
+```text
+where Pathfinder runs
+which dependencies are required
+how it is configured
+which identity it runs as
+where durable/local state belongs
+how secrets are referenced
+how startup/readiness is determined
+how migrations will be invoked
+how validation/tests are invoked
+how the service is built and started
+```
+
+without guessing.
+
+## 1.2 Minimal Relational Schema for the First Vertical Slice
+
+Implement only the relational schema required for the first complete vertical slice.
+
+Do **not** create speculative tables for every conceptual Phase 0 object simply because the object has been named.
+
+Expected early records include where required:
+
+```text
+Source
+SourceCollection
+RetrievalEvent
+SourceArtifact
+SourceRecord
+Assertion
+Observable
+Indicator
+Sighting
+Assessment
+Relationship
+LifecycleEvent
+IntelligenceConflict
+ProcessingRecord
+AuditEvent
+ChangeRecord / ChangeSet
+```
+
+Additional object families such as ThreatActor, Campaign, Malware, Tool, Vulnerability, Technique, Infrastructure, and Report require concrete schema contracts before implementation unless the selected first source/workload actually needs them.
+
+The schema must use typed status/state domains rather than one generic `status` field.
+
+## 1.3 Source Preservation
+
+Implement the Phase 0.11 SourceArtifact preservation contract for the first source.
+
+The exact artifact must be committed before authoritative semantic processing proceeds where the source contract requires preservation.
+
+## 1.4 First External Collector
 
 Implement one external intelligence source end to end.
 
-The objective is not feed count. The objective is to prove:
+The proof path is:
 
 ```text
-receive
-preserve
-validate
-parse
+retrieve
+  ↓
+preserve SourceArtifact
+  ↓
+create SourceRecord
+  ↓
+record Assertion
+  ↓
 normalize
-commit
+  ↓
+commit native records
+  ↓
 query
-failure handling
-provenance
 ```
 
-### 1.5 Manual Analyst Entry
+Failure, partial processing, retry, provenance, and checkpoint behavior are part of the implementation—not later polish.
 
-Provide a narrow mechanism for authorized manual analyst entry so the model is not dependent on external feed semantics.
+## 1.5 Manual Analyst Entry
 
-### 1.6 Observable Normalization
+Implement a narrow authorized manual-entry path without allowing analyst input to impersonate an external source or rewrite existing history.
 
-Implement the first frozen observable classes and canonicalization rules.
+## 1.6 Observable Normalization
 
-### 1.7 Relationships
+Implement the first frozen observable classes and `pathfinder-observable-v1` canonicalization behavior.
 
-Implement direct and derived relationship storage with provenance and time semantics.
+Normalization must be deterministic and pure.
 
-### 1.8 Sightings
+## 1.7 Relationships
 
-Implement sightings independently from indicators and assessments.
+Implement the versioned relationship registry, endpoint validation, time behavior, provenance, and origin separation required by Phase 0.7 and the exit reconciliation.
 
-### 1.9 Assessments and Conflict Preservation
+## 1.8 Sightings
 
-Implement source, machine, and analyst assessment distinctions required by the Phase 0 contract.
+Implement point and permitted bounded-aggregate Sightings independently from Indicators and Assessments.
 
-Conflicting assessments must remain visible.
+## 1.9 Assessments and Conflict Preservation
 
-### 1.10 Lifecycle Processing
+Implement human/machine Assessment separation, source reliability Assessment, Sighting assessment support, `IntelligenceConflict`, and explicit current-view resolution.
 
-Implement initial aging, expiration, revocation, supersession, and dispute behavior according to the frozen lifecycle contract.
+No last-write-wins current interpretation.
 
-### 1.11 Basic Query API
+## 1.10 Lifecycle Processing
 
-Implement a narrow query API sufficient to inspect:
+Implement initial lifecycle events and current-state derivation without rewriting historical records.
+
+## 1.11 Basic Query API
+
+Implement a narrow query API sufficient to inspect the vertical slice and its history.
+
+Initial query surfaces should support the applicable subset of:
 
 ```text
+sources
+source artifacts
+source records
+assertions
 observables
 indicators
-sources
-source records
 sightings
 assessments
 relationships
+conflicts
 provenance
-processing state
-lifecycle state
+processing history
+change history
+lifecycle
+coverage/index state
 ```
 
-A `no results` response must not imply complete search coverage when processing or indexing is incomplete.
+A `no results` response must not imply complete coverage when indexing, processing, authorization, or source coverage is incomplete.
 
-### 1.12 Initial Validation
+## 1.12 Initial Validation
 
-Create repository-owned tests and validation covering both success and important failure paths.
+Repository-owned tests must cover semantic invariants as well as implementation behavior.
 
-Initial failure cases should include, where applicable:
+Initial applicable failure/recovery cases include:
 
 ```text
 source unavailable
@@ -464,33 +498,64 @@ transaction failure
 conflicting intelligence
 expired intelligence
 interrupted processing
+checkpoint failure
+index incomplete
+artifact integrity mismatch
+stale analyst base
 ```
+
+Critical paths should include restart/interruption testing and selected fault injection.
 
 ## Phase 1 Exit Gate
 
-Phase 1 should demonstrate a complete narrow path:
+Phase 1 must demonstrate one complete narrow path:
 
 ```text
-one source
-   ↓
-preserved source record
-   ↓
-validated / parsed
-   ↓
-normalized Pathfinder objects
-   ↓
-relationships / assessments / sightings
-   ↓
-persisted provenance
-   ↓
+Source
+  ↓
+SourceCollection
+  ↓
+RetrievalEvent
+  ↓
+SourceArtifact
+  ↓
+SourceRecord
+  ↓
+Assertion
+  ↓
+normalized Pathfinder object(s)
+  ↓
+Relationships / Assessments / Sightings
+  ↓
+provenance + processing/change/audit history
+  ↓
 queryable result
 ```
 
-The operator must be able to trace a result backward to its source and determine what was source-provided, directly observed, derived, uncertain, conflicted, failed, or not established.
+The operator must be able to trace a result backward and distinguish:
 
-## Explicit Early Deferrals
+```text
+source-provided
+directly observed
+derived
+analyst-assessed
+machine-assessed
+uncertain
+conflicted
+expired
+revoked
+superseded
+failed
+partial
+unsupported
+not established
+```
 
-The following are intentionally not early implementation requirements:
+---
+
+# Explicit Early Deferrals
+
+The following remain intentionally deferred:
 
 ```text
 dozen-plus feed ingestion
@@ -505,28 +570,16 @@ polished UI
 broad multi-product control
 ```
 
-These may be evaluated later only when the intelligence core is proven and a concrete requirement justifies them.
+These may be evaluated only when the intelligence core is proven and a concrete requirement justifies them.
 
-## Longer-Term Direction
+---
 
-Potential later capabilities include:
+# Longer-Term Direction
 
-```text
-additional high-quality source classes
-STIX import/export
-TAXII client/server interoperability
-ATT&CK mappings
-controlled enrichment
-analyst workflow
-historical reprocessing
-ISS-product correlation
-candidate detections
-candidate enforcement recommendations
-operational relevance analysis
-```
+Potential later capabilities include additional high-quality source classes, STIX import/export, TAXII client/server interoperability, optional ATT&CK mappings, controlled enrichment, richer analyst workflow, historical reprocessing, ISS-product correlation, candidate detections, candidate enforcement recommendations, and operational relevance analysis.
 
-Later-phase ordering is intentionally not frozen here.
+Later-phase ordering remains intentionally unfrozen.
 
-The core remains:
+---
 
-> **Preserve the source, preserve uncertainty, preserve provenance, and do not turn intelligence into authority by accident.**
+> **Preserve the source, preserve the original record, preserve uncertainty, preserve provenance, and never turn intelligence into authority by accident.**
