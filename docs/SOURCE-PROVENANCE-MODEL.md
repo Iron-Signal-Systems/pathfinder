@@ -4,17 +4,11 @@
 
 Pathfinder must preserve enough provenance to answer:
 
-> **Where did this intelligence come from, what exactly was received, how was it processed, and what later conclusions depend on it?**
+> **Where did this intelligence come from, what exactly was acquired, how was it processed, and what later conclusions depend on it?**
 
-Provenance is not optional metadata. It is part of the meaning of the intelligence.
+Provenance is part of intelligence meaning. It is not optional decoration.
 
-```text
-intelligence without provenance != trustworthy intelligence
-```
-
-Pathfinder preserves provenance across receipt, preservation, validation, parsing, normalization, correlation, assessment, publication, and reprocessing.
-
-## Governing Principles
+The governing principles are:
 
 > **Preserve origin before interpretation.**
 
@@ -28,113 +22,266 @@ Pathfinder preserves provenance across receipt, preservation, validation, parsin
 
 > **Later processing must not make earlier knowledge appear more complete than it actually was.**
 
+> **The original record is maintained no matter what.**
+
+## Canonical Acquisition Chain
+
+The authoritative acquisition/provenance chain is:
+
+```text
+Source
+  ↓
+SourceCollection
+  ↓
+RetrievalEvent
+  ↓
+SourceArtifact
+  ↓
+SourceRecord
+  ↓
+Assertion
+  ↓
+normalized / derived Pathfinder intelligence
+```
+
+`SourceArtifact` and `SourceRecord` are distinct.
+
+```text
+SourceArtifact = exact acquired payload
+SourceRecord   = logical item within that payload
+```
+
 ## Source
 
 A `Source` represents an intelligence provider or origin known to Pathfinder.
 
-Examples include government sources, ISACs, commercial vendors, internal SOC sources, customer-private intelligence, partner organizations, and research sources.
+Examples include government sources, ISACs, vendors, internal SOC sources, customer-private sources, partner organizations, and research sources.
 
-Every Source receives a Pathfinder-controlled UUIDv7 identity. Display names, URLs, hostnames, and API endpoints are attributes and must not become object identity because they may change.
+Every Source receives a Pathfinder-controlled UUIDv7 identity. Display names, URLs, hostnames, and endpoints are attributes, not object identity.
 
-Conceptual fields include:
+Conceptual fields may include:
 
 ```text
 source_id
 name
 source_type
 provider_identity
-description / not_recorded
+description / NOT_RECORDED
 status
 created_at
-retired_at / not_applicable
-reliability_profile / not_assessed
+retired_at / NOT_APPLICABLE
 handling_profile
-authentication_profile_reference / not_applicable
+authentication_profile_reference / NOT_APPLICABLE
+reliability_policy_reference / NOT_APPLICABLE
 ```
 
-Credentials themselves do not belong in Source records.
+Credentials do not belong in Source records.
+
+Authoritative source reliability does not live as a mutable field on Source. Reliability is represented through historical `Assessment` records against Source or SourceCollection.
+
+```text
+Source.reliability = HIGH
+```
+
+is not an authoritative Pathfinder storage model.
 
 Initial source classes may include:
 
 ```text
-government
-industry
-isac
-vendor
-community
-internal
-customer
-partner
-research
-other
+GOVERNMENT
+INDUSTRY
+ISAC
+VENDOR
+COMMUNITY
+INTERNAL
+CUSTOMER
+PARTNER
+RESEARCH
+OTHER
 ```
 
-Source class does not establish trustworthiness.
+Source class does not establish reliability or truth.
 
 ## SourceCollection
 
 A Source may expose multiple distinct collections with different semantics, update cadence, handling rules, and quality characteristics.
 
-Examples include a vendor malware feed, infrastructure feed, phishing feed, or a government KEV catalog and advisory publication stream.
+Examples include a vendor malware feed, infrastructure feed, phishing feed, KEV-style catalog, advisory publication stream, or TAXII Collection.
 
-Pathfinder therefore represents `SourceCollection` separately.
-
-Conceptual fields:
+Conceptual fields may include:
 
 ```text
 source_collection_id
 source_id
 name
 collection_type
-external_collection_identifier / not_known
+external_collection_identifier / NOT_KNOWN
 transport_type
-endpoint_reference / not_applicable
+endpoint_reference / NOT_APPLICABLE
 expected_format
 status
+created_at
 ```
 
-This allows Pathfinder to record not just who supplied information, but through which collection it arrived.
+Reliability may be assessed specifically at SourceCollection scope where that is more meaningful than Source-wide reliability.
+
+## RetrievalEvent
+
+A `RetrievalEvent` is an acquisition attempt and operational record distinct from both SourceArtifact and SourceRecord.
+
+A retrieval may produce:
+
+```text
+zero artifacts
+one artifact
+many artifacts
+partial artifacts
+failure
+```
+
+Conceptual fields may include:
+
+```text
+retrieval_event_id
+source_id
+source_collection_id / NOT_APPLICABLE
+started_at
+completed_at / NOT_COMPLETED
+operation_result
+transport_status
+authentication_state
+rate_limit_state
+continuation_state
+artifacts_received
+records_reported / NOT_KNOWN
+error_class / NOT_APPLICABLE
+```
+
+Truth separations include:
+
+```text
+retrieval succeeded != intelligence accepted
+retrieval returned zero records != source contains no intelligence
+retrieval failed != source content invalid
+```
+
+## SourceArtifact
+
+A `SourceArtifact` is an immutable acquired payload preserved at the application-content boundary before semantic parsing, normalization, correlation, or assessment.
+
+Examples include:
+
+```text
+HTTP response entity body
+TAXII response page
+downloaded JSON/CSV/XML document
+compressed feed artifact
+vendor export
+advisory PDF
+analyst-imported source file
+```
+
+Every SourceArtifact receives a Pathfinder-controlled UUIDv7 identity.
+
+Conceptual fields include:
+
+```text
+source_artifact_id
+source_id
+source_collection_id / NOT_APPLICABLE
+retrieval_event_id / NOT_APPLICABLE
+received_at
+source_location
+media_type / NOT_KNOWN
+content_encoding / NOT_KNOWN
+byte_length
+sha256
+preservation_state
+integrity_state
+availability_state
+storage_reference
+handling_profile
+created_at
+```
+
+The exact preserved bytes and Pathfinder-calculated preservation digest belong here.
+
+```text
+SourceArtifact owns exact bytes
+SourceRecord does not own exact bytes
+```
 
 ## SourceRecord
 
-A `SourceRecord` represents one specific received unit of source material.
+A `SourceRecord` represents one logical item within a SourceArtifact.
 
-Examples include one TAXII object, JSON feed item, API result object, advisory document, CSV row, structured report, or analyst-submitted source artifact.
+Examples include:
 
-A SourceRecord answers:
+```text
+one STIX object within a TAXII response
+one JSON object within a feed document
+one CSV row
+one logical advisory entry
+one report item
+```
 
-> **What exactly did Pathfinder receive?**
-
-Every SourceRecord receives a Pathfinder-controlled UUIDv7 identity. Provider-supplied record identifiers remain separate.
+A SourceRecord receives a Pathfinder-controlled UUIDv7 identity and references its parent SourceArtifact.
 
 Conceptual fields include:
 
 ```text
 source_record_id
+source_artifact_id
 source_id
-source_collection_id / not_applicable
-external_record_id / not_known
-source_publication_time / not_known
-source_modified_time / not_known
-source_observation_time / not_known
-retrieved_at / not_applicable
-received_at
-transport_type
-media_type / not_known
-source_format
-source_location
+source_collection_id / NOT_APPLICABLE
+external_record_id / NOT_KNOWN
+source_publication_time / NOT_KNOWN
+source_modified_time / NOT_KNOWN
+source_observation_time / NOT_KNOWN
+source_locator
 source_marking
-raw_content_hash
-preserved_content_reference
-preservation_state
 validation_state
 processing_state
 created_at
 ```
 
+The following artifact-level fields do **not** belong on SourceRecord as authoritative storage:
+
+```text
+raw_content_hash
+preserved_content_reference
+artifact media type
+artifact byte length
+artifact preservation state
+artifact integrity state
+artifact availability state
+```
+
+Those belong to SourceArtifact.
+
+Where exact per-record bytes cannot be established safely, the parent SourceArtifact plus deterministic SourceRecord locator remains the authoritative path back to what Pathfinder acquired.
+
+## SourceRecord Locator
+
+A SourceRecord should preserve a deterministic locator where practical.
+
+Examples include:
+
+```text
+JSON Pointer
+STIX object ID + bundle/page context
+XML path
+CSV row number
+archive-member path
+byte range where safely established
+document section
+```
+
+A parser-generated reserialization must never be called the original source bytes.
+
 ## Origin Source Versus Delivery Source
 
-Pathfinder must distinguish:
+Pathfinder distinguishes:
 
 ```text
 ORIGIN SOURCE
@@ -144,92 +291,55 @@ DELIVERY SOURCE
     who delivered that material to Pathfinder
 ```
 
-If CISA publishes an advisory and multiple vendors redistribute it, Pathfinder must not count the redistributors as independent origins.
+If one upstream report is redistributed by several vendors, those redistributors do not automatically become independent origins.
 
-Where this information can be established, provenance should support:
+Where known, provenance may include:
 
 ```text
-origin_source_id / not_known
+origin_source_id / NOT_KNOWN
 delivery_source_id
-upstream_source_record_id / not_known
-redistribution_chain / not_known
+upstream_source_record_id / NOT_KNOWN
+redistribution_chain / NOT_KNOWN
 ```
 
-Unknown origin remains unknown. Pathfinder does not guess.
+Unknown origin remains unknown.
 
-## RetrievalEvent
+## Preservation and Integrity
 
-A retrieval attempt is operational history distinct from the SourceRecord.
-
-Pathfinder should preserve a `RetrievalEvent` or equivalent processing record for activity such as API polling, TAXII retrieval, HTTPS document retrieval, and manual import.
-
-A retrieval event may produce zero records, one record, many records, partial results, or failure.
-
-Conceptual fields:
-
-```text
-retrieval_event_id
-source_id
-source_collection_id
-started_at
-completed_at / not_completed
-result_state
-records_received
-continuation_state
-transport_status
-rate_limit_state
-authentication_state
-error_class / not_applicable
-```
-
-Truth separations include:
-
-```text
-retrieval succeeded != intelligence accepted
-retrieval returned zero records != source contains no intelligence
-retrieval failed != source record invalid
-```
-
-## Raw Source Preservation
-
-Where the governing preservation contract requires it, Pathfinder preserves original source bytes before destructive transformation.
+Pathfinder preserves SourceArtifact bytes before destructive transformation where the source contract requires it.
 
 Conceptually:
 
 ```text
 RECEIVE
    ↓
-BOUND / VALIDATE TRANSPORT
+BOUND TRANSPORT
    ↓
-PRESERVE ORIGINAL
+PRESERVE SOURCEARTIFACT
    ↓
-HASH
+HASH / VERIFY
    ↓
-PARSE
+PARSE TO SOURCERECORDS
    ↓
-NORMALIZE
+ASSERTIONS
+   ↓
+NORMALIZE / DERIVE / ASSESS
 ```
 
-Preserved source material should retain original bytes, content hash, size, received time, source identity, collection identity, transport context, media type, and preservation state.
+A Pathfinder SHA-256 digest over the exact preserved SourceArtifact supports later integrity verification.
 
-The detailed storage and retention rules are frozen in Phase 0.11.
-
-## Source Hash
-
-Pathfinder calculates a cryptographic digest of preserved source content. Initial direction is SHA-256.
-
-The digest establishes content identity/integrity within Pathfinder's processing chain. It does not establish source authenticity by itself.
+It does not prove source identity, source reliability, or assertion truth.
 
 ```text
 hash matches != source authenticated
-source authenticated != content true
+source authenticated != assertion true
 ```
 
-External source-provided signatures or hashes are preserved separately from Pathfinder's own preservation digest.
+External source-provided hashes/signatures remain separate from Pathfinder's preservation digest.
 
 ## Source Authenticity
 
-Pathfinder distinguishes:
+Pathfinder keeps separate facts such as:
 
 ```text
 transport authenticated
@@ -237,92 +347,114 @@ source identity authenticated
 content cryptographically signed
 signature verified
 content unsigned
-source authenticity not_verified
+authenticity NOT_VERIFIED
 ```
-
-These are separate facts.
 
 ```text
-HTTPS connection valid != individual record signed
-record signature valid != intelligence assertion true
+HTTPS connection valid != individual object signed
+signature valid != assertion true
 ```
-
-The broader trust/security model is finalized in Phase 0.15.
 
 ## Source Location
 
-Pathfinder preserves where a SourceRecord was obtained, such as TAXII collection identifier, API endpoint, document URL, feed path, manual import reference, or partner exchange reference.
+Pathfinder preserves acquisition location/context such as TAXII Collection, API endpoint, document URL, feed path, manual import reference, or partner exchange reference.
 
-Source location is provenance, not object identity.
+Source location is provenance, not identity.
 
 ## Source Markings
 
-Source handling restrictions survive ingestion and normalization.
+Handling restrictions survive ingestion and normalization.
 
-Potential marking classes may later include TLP, provider proprietary markings, customer-private, partner-restricted, government handling markings, and redistribution restrictions.
+A technically public Observable extracted from a restricted report does not automatically make the surrounding Assertion, context, or source material unrestricted.
 
-Normalizing a technically public observable out of a restricted report does not automatically remove the handling restrictions associated with the report, source assertion, or surrounding context.
+Marking and handling rules remain server-enforced through later read/export paths.
 
 ## Parser Provenance
 
-Any source-derived structured information identifies the parser responsible.
+Any source-derived structured information identifies the parser/process responsible.
 
-Conceptual fields include:
+Processing lineage should preserve, where applicable:
 
 ```text
-parser_name
-parser_version
-parser_contract_version
+process identity
+parser name
+parser version
+parser contract version
+input SourceArtifact / SourceRecord
+output records
 processed_at
+result
 ```
 
-A parser upgrade may interpret the same SourceRecord differently. Pathfinder preserves which parser version produced which result.
+A parser upgrade creates new processing lineage.
 
 ```text
-new parser output != original parser output rewritten
+new parser result != old parser result rewritten
 ```
 
 ## Normalization Provenance
 
 Normalization also requires versioning.
 
-Conceptual fields include:
+Conceptual lineage includes:
 
 ```text
 normalizer_name
 normalizer_version
 canonicalization_profile
+input SourceRecord / Assertion
+output object IDs
 processed_at
+result
 ```
 
-If normalization behavior changes later, Pathfinder remains able to establish which rule set generated historical results.
+If canonicalization behavior changes, historical outputs remain attributable to the version that produced them.
 
 ## Correlation Provenance
 
-Derived Relationships preserve their derivation basis.
-
-Conceptual fields include:
+Pathfinder-derived Relationships preserve:
 
 ```text
 derivation_method
 derivation_version
 basis_ids
 derived_at
+result
 ```
 
-Pathfinder must not merely record `related = true` without retaining why the relationship exists.
+`related = true` without a reconstructable basis is insufficient.
 
 ## Assessment Provenance
 
-Machine Assessments preserve process identity, algorithm/rule identity, version, basis, inputs, and processing time.
+Machine Assessments preserve process/rule identity, version, basis, inputs, and time.
 
-Human Assessments preserve analyst principal, basis, assessment time, and rationale where recorded.
+Human Assessments preserve analyst principal, basis, time, and rationale where recorded.
 
-Machine and human provenance remain distinct.
+Machine and human authority remain distinct.
+
+## Source Reliability Provenance
+
+Source reliability is historical Assessment state.
+
+Example:
+
+```text
+Assessment
+    subject = SourceCollection X
+    assessment_type = SOURCE_RELIABILITY
+    assessment_value = MODERATE
+    authority = HUMAN_ANALYST
+```
+
+A later reliability Assessment does not rewrite what Pathfinder's reliability judgment was when an earlier intelligence Assessment was made.
+
+```text
+current source reliability != historical source reliability
+```
 
 ## Processing Lineage
 
-Pathfinder supports directional lineage such as:
+Canonical lineage may look like:
 
 ```text
 Source
@@ -331,50 +463,59 @@ SourceCollection
    ↓
 RetrievalEvent
    ↓
+SourceArtifact
+   ↓
 SourceRecord
    ↓
 Assertion
    ↓
-Observable / Relationship
+Observable / Indicator / Relationship / other intelligence
    ↓
 Assessment
    ↓
-Published Intelligence
+current view / export where authorized
 ```
 
-Not every path requires every stage, but every material derived object must preserve enough lineage to explain its origin.
+Not every path requires every stage, but every material derived record must preserve enough lineage to explain its origin.
 
 ## Provenance Is Many-to-Many
 
-One SourceRecord may produce many Assertions, Observables, and Relationships. One normalized object may be supported by many SourceRecords, Assertions, and Sources.
+One SourceArtifact may contain many SourceRecords.
 
-The implementation must preserve this rather than placing one simplistic `source_id` field on every object and calling provenance complete.
+One SourceRecord may produce many Assertions and normalized objects.
+
+One normalized object or Relationship may be supported by many Assertions from many SourceRecords and Sources.
+
+The implementation must not put one simplistic `source_id` on every intelligence object and call provenance complete.
 
 ## Independent Corroboration
 
-Provenance must allow Pathfinder to determine whether apparently separate reports actually share an origin.
+Provenance must allow Pathfinder to distinguish:
 
-For example, three delivery sources may represent only two independent origin sources if two merely redistribute the same upstream report.
+```text
+record count
+delivery source count
+origin source count
+independent origin count
+```
 
 If independence cannot be established:
 
 ```text
-independence = not_known
+independence = NOT_KNOWN
 ```
 
 Pathfinder does not assume independence.
 
 ## Provenance Completeness
 
-Pathfinder represents whether provenance is complete, partial, or not known.
+Provenance itself has completeness/coverage state.
 
-Unknown upstream provenance is legitimate. Pathfinder must not invent missing provenance to fill a field.
+Unknown upstream provenance is legitimate. Missing origin information must not be guessed merely to fill a schema field.
 
 ## Historical Preservation
 
-Provenance is historical.
-
-If a source changes name, URL, provider ownership, collection identifier, or authentication method, Pathfinder retains enough historical context to reconstruct how past records entered the system.
+If source names, endpoints, ownership, collection identifiers, trust configuration, or authentication methods change, historical records retain enough context to reconstruct how older material entered Pathfinder.
 
 ```text
 current source endpoint != historical retrieval endpoint
@@ -382,7 +523,7 @@ current source endpoint != historical retrieval endpoint
 
 ## Time Semantics
 
-Pathfinder preserves distinct times where available:
+Pathfinder preserves separate times where available:
 
 ```text
 source_observation_time
@@ -398,102 +539,104 @@ correlated_at
 assessed_at
 ```
 
-These are not collapsed into one generic timestamp.
+These are not interchangeable.
 
 ## Failure Provenance
 
-Failed processing is also provenance.
+Failure is also provenance.
 
-Pathfinder preserves enough history to establish states such as:
+Pathfinder preserves stage-level states such as:
 
 ```text
-SourceRecord received
-preservation succeeded
+SourceArtifact preserved
+integrity verified
+SourceRecord created
 validation succeeded
 parser failed
-normalization not_performed
-assessment not_performed
+normalization NOT_PERFORMED
+assessment NOT_PERFORMED
 ```
 
 A later successful retry does not erase an earlier failed attempt.
 
 ## Reprocessing
 
-Reprocessing occurs against preserved source material or other authoritative Pathfinder records.
+Reprocessing starts from preserved SourceArtifact material or other authoritative historical Pathfinder records.
 
-Reprocessing creates new lineage rather than rewriting old processing history.
-
-Conceptually:
+Example:
 
 ```text
-SourceRecord
-   |
-   +--> Parser v1 --> Result A
-   |
-   +--> Parser v2 --> Result B
+SourceArtifact A
+    ├─ parser v1 -> Result Set A
+    └─ parser v2 -> Result Set B
 ```
 
-A newer result may become current while earlier processing history remains available.
+Both processing histories remain.
 
-## Deletion and Provenance
+## Retention and Destruction
 
-Deleting or expiring derived intelligence must not destroy provenance required by retained historical records.
+Lifecycle status does not directly authorize destruction of source material or provenance.
 
 ```text
-object expired != provenance disposable
+Indicator EXPIRED != SourceArtifact deletable
+Source withdrawn != SourceArtifact deletable
 ```
 
-The later retention contract must account for dependency chains such as Assessment -> Assertion -> SourceRecord -> preserved source content.
+If law, contract, handling policy, or another authorized requirement mandates destruction of raw SourceArtifact bytes, Pathfinder preserves immutable historical metadata describing the artifact and destruction action.
+
+```text
+raw bytes destroyed by policy != historical record removed
+```
 
 ## Common Truth Separations
 
 ```text
-Source != SourceRecord
 Source != SourceCollection
-SourceRecord != RetrievalEvent
+SourceCollection != RetrievalEvent
+RetrievalEvent != SourceArtifact
+SourceArtifact != SourceRecord
+SourceRecord != Assertion
 origin source != delivery source
-delivery source count != independent source count
+delivery count != independent origin count
 source authenticated != assertion true
-TLS validated != source content signed
 content signed != assertion true
-source hash != source authenticity
-same source content != independent corroboration
-current source endpoint != historical source endpoint
+SourceArtifact hash != source authenticity
+same content != independent corroboration
+current source endpoint != historical endpoint
 retrieval time != publication time
 publication time != observation time
 receipt time != observation time
-parser version != source version
-parser output != source text
+parser output != original bytes
 normalization != source assertion
-derived relationship != directly reported relationship
+derived Relationship != directly reported Relationship
 new parser interpretation != old interpretation erased
-processing failure != source-record loss
+processing failure != source history lost
 provenance incomplete != provenance fabricated
-raw source != normalized intelligence
-source marking != automatically removable during normalization
+source marking != removable during normalization
 one normalized object != one source
-one source record != one assertion
+Source reliability != mutable Source field
 ```
 
 ## Phase 0.5 Exit Decision
 
-Phase 0.5 is satisfied when Pathfinder accepts:
+Phase 0.5 is satisfied when Pathfinder accepts that:
 
-1. `Source`, `SourceCollection`, `RetrievalEvent`, and `SourceRecord` as distinct provenance concepts.
-2. Pathfinder-controlled UUIDv7 identities for provenance records.
-3. Explicit separation between origin source and delivery source.
-4. Source provenance survives normalization, correlation, assessment, and reprocessing.
-5. SourceRecord preserves what Pathfinder actually received.
-6. Source hashes protect preserved-content identity but do not establish truth or source authenticity.
-7. Source markings and handling restrictions survive processing.
-8. Parser and normalizer identities and versions are part of provenance.
+1. `Source`, `SourceCollection`, `RetrievalEvent`, `SourceArtifact`, and `SourceRecord` are distinct provenance concepts.
+2. SourceArtifact owns exact acquired bytes and Pathfinder's preservation digest.
+3. SourceRecord is a logical item within a SourceArtifact and preserves a locator/provenance path.
+4. Origin and delivery source remain separate.
+5. Source provenance survives normalization, correlation, Assessment, export, and reprocessing.
+6. SourceArtifact hashes support integrity verification but do not establish truth/authenticity.
+7. Markings and handling restrictions survive processing.
+8. Parser and normalizer identities/versions are part of provenance.
 9. Derived Relationships preserve their derivation basis.
-10. Human and machine Assessments preserve different authority/provenance.
-11. Provenance supports many-to-many relationships.
-12. Redistributed intelligence does not automatically count as independent corroboration.
-13. Unknown provenance remains explicitly unknown.
-14. Historical source configuration and processing history are not overwritten by current configuration.
-15. Observation, publication, retrieval, receipt, processing, and assessment times remain distinct.
+10. Human and machine Assessments preserve distinct authority/provenance.
+11. Source reliability is represented through historical Assessments, not a mutable Source truth field.
+12. Provenance supports many-to-many lineage.
+13. Redistributed intelligence does not automatically count as independent corroboration.
+14. Unknown provenance remains explicitly unknown.
+15. Observation, publication, retrieval, receipt, preservation, processing, and Assessment times remain distinct.
 16. Failed and successful processing attempts both remain reconstructable.
-17. Reprocessing produces new lineage rather than rewriting old lineage.
-18. Retention must not silently destroy provenance required to understand retained intelligence.
+17. Reprocessing creates new lineage rather than rewriting old lineage.
+18. Retention/destruction never silently removes the historical record needed to explain retained intelligence.
+19. **The original record is maintained no matter what.**
