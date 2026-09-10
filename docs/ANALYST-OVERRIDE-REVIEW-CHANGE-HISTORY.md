@@ -8,29 +8,25 @@ Pathfinder is append-only with respect to historical intelligence meaning.
 
 An original record is never rewritten merely because later information changes Pathfinder's understanding of it.
 
-This applies to:
+This applies to historical SourceRecords, Assertions, Sightings, Assessments, Relationships, LifecycleEvents, IntelligenceConflicts, ChangeRecords, ChangeSets, ProcessingRecords, integration history, and applicable AuditEvents.
 
-```text
-SourceRecords
-Assertions
-Sightings
-Assessments
-Relationships
-LifecycleEvents
-IntelligenceConflicts
-ChangeRecords
-ChangeSets
-processing history
-integration history
-```
-
-Later records may supersede, revoke, dispute, qualify, correct, reinterpret, resolve, or invalidate an earlier record. They never cause the earlier record to cease having existed.
+Later records may supersede, revoke, dispute, qualify, correct, reinterpret, resolve, or invalidate earlier records. They never cause the earlier record to cease having existed.
 
 ## Purpose
 
-Human analysts must be able to interpret, challenge, correct, and refine Pathfinder intelligence without rewriting historical records.
+Human analysts must be able to interpret, challenge, correct, and refine Pathfinder intelligence without rewriting source or observation history.
 
-Every material analyst change creates append-only history showing who changed the interpretation, what changed, when, why, what prior state existed, what information formed the basis, and what resulting current view was created.
+Every material analyst change creates reconstructable, Git-style history showing:
+
+```text
+who changed the interpretation
+what changed
+when
+why
+what prior state existed
+what records formed the basis
+what resulting current view was produced
+```
 
 The governing principles are:
 
@@ -40,67 +36,9 @@ The governing principles are:
 
 > **Corrections move history forward. They never rewrite history backward.**
 
-## Git-Style Change Model
-
-Pathfinder maintains a first-class `ChangeRecord`.
-
-Conceptually:
-
-```text
-change_id
-parent_change_id / not_applicable
-principal_id
-principal_type
-action_type
-subject_id
-created_at
-summary
-reason
-basis_ids
-created_object_ids
-superseded_object_ids
-previous_view_digest / not_applicable
-resulting_view_digest / not_applicable
-change_status
-```
-
-`change_id` uses UUIDv7.
-
-The ChangeRecord records what happened. It does not replace the intelligence records involved.
-
-## Original Record Preservation
-
-If Pathfinder originally contains an Assessment marking an Indicator malicious with HIGH confidence and later investigation determines that conclusion was wrong, Pathfinder does not modify the original Assessment.
-
-Instead:
-
-```text
-Assessment A
-    malicious
-    HIGH
-    retained permanently as historical record
-
-Assessment B
-    benign
-    HIGH
-    supersedes Assessment A
-```
-
-The current view may now show `benign`, while historical reconstruction still shows what Pathfinder believed at T1, what changed at T2, and which Assessment superseded the earlier one.
-
-The incorrect record remains because the fact that Pathfinder once reached that conclusion is itself historically important.
-
-## Wrong Records Are Still Records
-
-A later determination that an original record was incorrect, misinterpreted, based on faulty telemetry, produced by a parser defect, created by analyst error, created by a compromised account, or based on poisoned intelligence does not authorize its removal.
-
-Pathfinder attaches later state or interpretation instead.
-
-This permits an investigator to understand both what happened and why Pathfinder believed what it believed at the time.
-
 ## Git-Like, Not Git
 
-The database remains authoritative. Pathfinder does not literally use Git as its intelligence datastore.
+Pathfinder's database remains authoritative. Git is not the intelligence datastore.
 
 The intended semantics are Git-like:
 
@@ -108,195 +46,188 @@ The intended semantics are Git-like:
 append-only history
 stable record identity
 attributable changes
-parent lineage
+parent/base lineage where applicable
 human-readable summaries
-structured diffs
+structured semantic diffs
 reconstructable prior state
 forward-only correction
+stale-base detection
 ```
 
-A material change should resemble:
+## ChangeRecord
+
+A first-class `ChangeRecord` records one material intentional change to governed interpretation, review/workflow state, or governed configuration.
+
+Conceptual fields include:
 
 ```text
-commit 0199...
-Author: analyst:jwood
-Date:   ...
-
-    Reclassify IP indicator after incident review
-
-Subject:
-    indicator 0198...
-
-Changes:
-    operational_relevance:
-        HIGH -> LOW
-
-    threat_classification:
-        malicious -> benign
-
-Basis:
-    assessment 0197...
-    sighting 0196...
-    source_record 0195...
-
-Supersedes:
-    assessment 0194...
+change_id
+changeset_id / NOT_APPLICABLE
+base_change_id / NOT_APPLICABLE
+principal_id
+principal_type
+action_type
+subject_type
+subject_id
+created_at
+summary
+reason / NOT_RECORDED
+basis_ids
+created_object_ids
+superseded_object_ids
+previous_view_digest / NOT_APPLICABLE
+resulting_view_digest / NOT_APPLICABLE
+change_status
 ```
 
-This is more useful than a generic `indicator updated successfully` message.
-
-## No In-Place Historical Mutation
-
-Historical intelligence objects remain immutable where their semantics require immutability.
-
-A correction creates a new Assessment, Relationship, lifecycle event, workflow decision, or other proper object and a ChangeRecord links the operation together.
-
-Pathfinder should not implement historical correction as a direct field overwrite of an existing authoritative record.
-
-## Parent Change
-
-A material change may reference the immediately preceding applicable change to form an ordered history.
-
-Parent references may help detect concurrent changes, stale analyst views, unexpected history gaps, and attempted rewrites.
-
-Different subjects can have independent change streams; a parent reference does not imply one universal linear intelligence history.
-
-## Per-Subject and Global History
-
-Pathfinder should support conceptual operations equivalent to:
+Identity:
 
 ```text
-log <subject>
-show <change_id>
-diff <change_a> <change_b>
+change_id = UUIDv7
 ```
 
-A per-subject log answers how the current interpretation developed. A global log may show material Assessments, Relationships, conflict resolutions, lifecycle changes, source reliability changes, integration configuration changes, and export approvals subject to authorization.
+The ChangeRecord describes the change. It does not replace the intelligence records involved.
 
-## Change Summary and Rationale
+## ChangeSet
 
-Every material analyst change should have a concise human-readable summary analogous to a Git commit message. Significant changes should also preserve a longer rationale.
+A `ChangeSet` groups one logical set of ChangeRecords.
 
-A commit message never substitutes for analytical basis.
-
-## Structured Diff
-
-Pathfinder may generate structured semantic diffs for operator convenience:
+Conceptual fields include:
 
 ```text
-threat_classification:
-    - suspicious
-    + malicious
-
-confidence:
-    - MODERATE
-    + HIGH
+changeset_id
+principal_id
+created_at
+summary
+reason / NOT_RECORDED
+base_revision / NOT_APPLICABLE
+change_ids
+commit_result
 ```
 
-The diff represents change in Pathfinder's current interpretation. Internally, the system preserves the actual records created, superseded, disputed, revoked, or otherwise affected.
-
-## Current View
-
-The current state of intelligence is derived from historical records and their lifecycle, supersession, conflict, and review relationships.
+Identity:
 
 ```text
-history
-   ↓
-resolution rules
-   ↓
-current view
+changeset_id = UUIDv7
 ```
 
-Current-state tables, indexes, caches, or materialized views may be rebuilt.
+### Atomic Commit Rule
 
-> **Current-state views can be rebuilt. Original historical records cannot.**
+> **A committed ChangeSet is atomic.**
 
-## Change History Is Append-Only
+Either all semantic changes in a ChangeSet commit durably, or none of that ChangeSet commits.
 
-Material ChangeRecords are append-only. They cannot normally be edited, reordered, or silently deleted.
+A committed ChangeSet may not mean:
 
-If a ChangeRecord itself contains an error, Pathfinder records a corrective ChangeRecord.
+```text
+8 changes requested
+5 committed
+3 failed
+```
 
-## Revert
+A large bulk job may preflight 10,000 candidate mutations, reject ineligible members, then intentionally create one or more independent atomic ChangeSets for the approved scope. The overall bulk operation may therefore be `PARTIAL` while every committed ChangeSet remains individually atomic.
 
-Pathfinder may support a conceptual `revert <change_id>` operation.
+```text
+bulk operation PARTIAL
+    != partially committed ChangeSet
+```
 
-A revert creates another forward-moving change. It does not erase the original change.
+The earlier phrase `atomic where practical` is superseded by this rule.
 
-> **Revert creates history. Revert never removes history.**
+## Original Record Preservation
 
-## No Reset and No Force Push
+If Pathfinder originally contains:
 
-Pathfinder has no normal equivalent of `git reset --hard` against authoritative intelligence history.
+```text
+Assessment A
+    classification = malicious
+    confidence = HIGH
+```
 
-There is no ordinary analyst operation that rewinds the database and makes intervening records disappear.
+and later analysis determines that conclusion was wrong, Pathfinder does not modify Assessment A.
 
-Pathfinder also has no semantic equivalent of `git push --force` for intelligence history.
+Instead:
 
-> **Corrections move forward. History is not force-pushed.**
+```text
+Assessment A
+    retained historical record
+
+Assessment B
+    classification = benign
+    confidence = HIGH
+    supersedes Assessment A
+```
+
+The current view may change to benign, while the historical record still shows what Pathfinder believed before the correction and why the correction happened.
+
+## Wrong Records Are Still Records
+
+A later determination that an original record was incorrect, misinterpreted, based on faulty telemetry, produced by parser defect, created by analyst error, created by a compromised identity, or based on poisoned intelligence does not authorize historical deletion.
+
+The correction is another record.
+
+This allows an investigator to reconstruct both what happened and why Pathfinder believed what it believed at the time.
 
 ## Analyst Assessment
 
-The primary mechanism for human judgment remains the Pathfinder `Assessment`.
+The primary mechanism for analyst judgment is `Assessment`.
 
-Creating or superseding a material Assessment also creates a ChangeRecord describing the operation.
+Analyst authority is `HUMAN_ANALYST`.
 
-Analyst confidence belongs to the analyst Assessment and remains separate from source-reported confidence.
+An analyst may create an Assessment, supersede a prior Assessment, dispute a Relationship, resolve an IntelligenceConflict, record permitted analyst-origin Assertions/Sightings, apply optional ATT&CK mappings, or make other explicitly authorized changes.
+
+An analyst may not silently mutate SourceArtifact bytes, SourceRecords, source Assertions, or historical Sightings.
 
 ## Analyst Override
 
 An analyst override means:
 
 ```text
-new analyst interpretation
+new analyst Assessment
     +
-explicit supersession where applicable
+explicit supersession/dispute/resolution where applicable
     +
 ChangeRecord
+    +
+atomic ChangeSet where the logical operation spans multiple records
 ```
 
-It does not mean overwriting the old row.
+It never means overwriting the old authoritative row.
 
 ## Source Assertions
 
-Analysts cannot change what a source originally asserted because they disagree with it or later evidence proves it wrong.
+Analysts cannot rewrite what an external source originally asserted merely because they disagree with it.
 
-Instead, Pathfinder records a new analyst Assessment, source correction, withdrawal, dispute, or other appropriate forward-moving record.
-
-## Source Withdrawal
-
-A source withdrawal becomes new source-derived history. The original Assertion remains.
+Example:
 
 ```text
 Assertion A:
-    Source says IP X malicious
+    Vendor A says IP X malicious
 
-Assertion B:
-    Source withdraws Assertion A
+Assessment B:
+    Analyst assesses Vendor A claim incorrect
 ```
 
-Both remain.
+Both remain historical.
 
-## Revocation and Supersession
-
-Revocation and supersession change current applicability or interpretation. They do not delete historical records.
-
-```text
-REVOKED != deleted
-SUPERSEDED != deleted
-```
+If Vendor A later issues a correction, that correction becomes new source-derived history; the analyst does not manufacture it by editing Assertion A.
 
 ## Sightings
 
-Sightings remain historical observations even when later interpretation changes.
+Sightings remain historical observations.
 
-If the underlying activity occurred but was benign, the Sighting remains and a later Assessment records the benign interpretation.
+If the underlying activity occurred but later proves benign, the Sighting remains and a later Assessment records the benign interpretation.
 
-If a sensor defect generated an invalid observation, the original Sighting remains and a later Assessment may establish that the observation was invalid.
+If a sensor defect produced an invalid observation, the Sighting still remains and may receive an Assessment such as:
 
-The record is valuable precisely because it documents what influenced the system.
+```text
+assessment_type = OBSERVATION_VALIDITY
+assessment_value = INVALID
+```
 
-## False Positive
+The observation record is valuable precisely because it documents what influenced Pathfinder.
+
+## False Positive Semantics
 
 Pathfinder distinguishes:
 
@@ -305,58 +236,75 @@ observation invalid
 interpretation incorrect
 ```
 
-These are not the same condition and neither is corrected by deleting history.
+These are different conditions and neither is corrected by deleting history.
+
+A valid observation that led to a bad conclusion requires a new interpretation. A defective sensor event requires a separate validity Assessment.
 
 ## Analyst Assertions and Sightings
 
-Where permitted, analysts may record Assertions or Sightings under explicit analyst authority. Such records preserve analyst principal, basis, observation time where known, and recorded time.
+Where permitted, analysts may record Assertions or Sightings under explicit analyst authority.
+
+Such records preserve analyst principal, basis, observation time where known, recorded time, and applicable source/investigation context.
 
 An analyst must not impersonate Stronghold, FI, Atlas, or an external source as the origin.
 
 ## Analyst Relationships
 
-Analyst-created Relationships use `ANALYST_RECORDED` origin and remain subject to the Relationship registry, endpoint rules, time semantics, identity safeguards, and attribution safeguards.
+Analyst-created Relationships use `ANALYST_RECORDED` relationship origin and remain subject to:
+
+```text
+relationship registry
+endpoint validation
+time semantics
+identity safeguards
+attribution safeguards
+```
 
 Human authority does not bypass semantic validation.
 
 ## ATT&CK
 
-Analysts may add ATT&CK mappings, but ATT&CK remains optional classification metadata.
+Analysts may add ATT&CK mappings, but ATT&CK remains optional classification/reference metadata.
 
 A legitimate Pathfinder state may be:
 
 ```text
-Threat:
-    HIGH confidence
-
-Operational relevance:
-    HIGH
-
-ATT&CK:
-    NOT_MAPPED
+Threat significance = HIGH
+Operational relevance = HIGH
+ATT&CK = NOT_MAPPED
 ```
 
 with no downgrade.
 
-An inability to map activity to ATT&CK must never prevent escalation, compromise assessment, investigation, or recommended action.
+Inability to map activity to ATT&CK must never prevent escalation, investigation, compromise Assessment, or candidate action recommendation.
 
 ## Conflict Review
 
-Analysts may review IntelligenceConflict objects. Review should expose competing Assertions and Assessments, source/delivery provenance, reliability, confidence, corroboration, Sightings, time applicability, prior reviews, and processing lineage.
+Analysts may review `IntelligenceConflict` records.
 
-A conflict is resolved by an attributable Assessment or other explicit resolution record. Opposing intelligence remains intact.
+Review should expose the exact competing Assertions/Assessments, source/delivery provenance, source reliability, source confidence, independent corroboration, Sightings, time applicability, prior review, and ProcessingRecords.
+
+A conflict is resolved through an attributable resolution Assessment or other explicitly defined resolution record.
+
+Opposing source/Assessment records remain intact.
 
 ## Unresolved Is Valid
 
-An analyst may legitimately conclude `insufficient information` and leave a conflict unresolved.
+An analyst may conclude:
+
+```text
+INSUFFICIENT_INFORMATION
+```
+
+and leave a conflict unresolved.
 
 > **Uncertainty is an acceptable analytical result.**
 
-Pathfinder must never force a winner merely for workflow convenience.
+Pathfinder does not force a winner merely for workflow convenience.
 
 ## Review Workflow
 
-Review state remains separate from intelligence lifecycle state.
+Review workflow state remains separate from intelligence lifecycle state.
 
 Initial review states may include:
 
@@ -368,137 +316,253 @@ COMPLETED
 DEFERRED
 ```
 
-Review assignment, priority, reason, and analyst identity are workflow metadata, not intelligence meaning.
+Assignment, priority, review reason, and reviewer identity are workflow metadata, not threat-intelligence meaning.
 
 ## Machine Versus Analyst
 
-Machine Assessments remain machine authored. Analyst Assessments remain human authored.
+Machine Assessments remain `PATHFINDER_PROCESS` authored.
 
-Accepting a machine suggestion must not mutate the machine record into a human-authored record. The system may record a separate analyst approval or a new analyst Assessment based on the machine result.
+Human Assessments remain `HUMAN_ANALYST` authored.
+
+Accepting a machine suggestion does not mutate the machine Assessment into a human Assessment.
+
+Pathfinder may instead record:
+
+```text
+analyst workflow approval
+```
+
+or:
+
+```text
+new HUMAN_ANALYST Assessment based on machine Assessment
+```
+
+according to the operation's semantic contract.
 
 Rejecting a machine suggestion does not delete it.
 
-A prior analyst decision also must not permanently suppress materially new machine or source intelligence. New contradictory information may reopen review or conflict.
+## Current-View Resolution
+
+For an Assessment domain identified by at least:
+
+```text
+subject
+assessment_type
+applicable scope
+applicable time
+```
+
+Pathfinder derives the applicable, non-invalidated, non-superseded Assessment candidates.
+
+No Assessment automatically wins because it is:
+
+```text
+newest
+highest confidence
+human-authored
+machine-authored
+supported by the most raw records
+```
+
+A singular current interpretation exists only when an explicit mechanism establishes it, such as:
+
+```text
+valid supersession lineage
+resolved IntelligenceConflict with resolution Assessment
+versioned approved current-view selection policy
+```
+
+If materially incompatible applicable Assessments remain without an authorized resolution:
+
+```text
+current_interpretation_state = CONFLICTED
+```
+
+Pathfinder exposes the competing Assessments subject to authorization.
+
+Database last-write-wins is not an intelligence resolution policy.
+
+## No Permanent Human Lock
+
+A prior analyst decision does not suppress materially new intelligence forever.
+
+If new Assertions, Sightings, or Assessments materially conflict with the existing human conclusion, Pathfinder preserves the new information and may reopen review/conflict.
+
+Earlier analyst history remains intact.
 
 ## Override Scope
 
-An override applies only to the explicit subject and assessment domain.
+An override applies only to the explicit subject and Assessment domain.
 
 Changing operational relevance must not silently change source reliability, threat classification, attribution, or historical Sightings.
 
-Pathfinder should have no generic `analyst_override = true` field that suppresses unrelated intelligence.
+Pathfinder has no generic `analyst_override = true` field that suppresses unrelated intelligence.
 
 ## Basis and Rationale
 
-Material analyst decisions preserve analytical basis. Possible basis objects include Assertions, Sightings, Relationships, SourceRecords, SourceArtifacts where permitted, other Assessments, external references, and local investigation records.
+Material analyst decisions preserve structured basis where available.
 
-Narrative reasoning may supplement structured basis but should not replace it when structured provenance exists.
+Possible basis objects include:
 
-## Four-Eyes Review
+```text
+Assertions
+Sightings
+Relationships
+SourceRecords
+SourceArtifacts where authorized
+other Assessments
+IntelligenceConflicts
+external references
+investigation records
+```
 
-The model should support optional single-review, dual-review, or required approval workflows for high-impact actions without altering underlying intelligence history.
+Narrative rationale may supplement structured basis but does not replace provenance when structured references exist.
 
-Workflow approval and analytical Assessment remain separate records.
+## Four-Eyes / Approval Workflow
+
+The model may support single-review, dual-review, or required approval for high-impact operations without changing the underlying intelligence records.
+
+Workflow approval and analytical Assessment are different records.
+
+```text
+second reviewer approved export != second identical threat Assessment
+```
 
 ## High-Impact and Bulk Changes
 
-High-impact or bulk actions should require explicit scope, preview where practical, authorization, reason, and audit.
+High-impact or bulk changes require explicit scope, authorization, reason, and audit. Preview/preflight should be supported where practical.
 
-A typo should not silently alter the current interpretation of an entire corpus.
+A typo or overly broad query must not silently alter an entire corpus.
 
-## ChangeSet
-
-A single logical operation affecting multiple records may be grouped into a first-class `ChangeSet`.
-
-Conceptually:
-
-```text
-changeset_id = UUIDv7
-principal
-created_at
-summary
-reason
-individual_change_ids
-```
-
-A ChangeSet is analogous to one Git commit touching several files. It groups changes; it does not mutate original records.
-
-Where practical, one logical ChangeSet should commit atomically or return an explicit failure/partial state.
+Preflight is not commit.
 
 ## Concurrency and Stale Base
 
-Parent/change lineage provides a clean way to detect stale writes.
+Change lineage provides a clean way to detect stale analyst state.
 
-If an analyst attempts to commit against an outdated parent state after another analyst has committed a conflicting change, Pathfinder may return:
+Example:
+
+```text
+Analyst A begins from revision 100
+Analyst B commits revision 101
+Analyst A attempts overlapping change based on 100
+```
+
+Pathfinder may return:
 
 ```text
 STALE_BASE
 ```
 
-rather than silently applying database last-write-wins behavior.
+and require the analyst to review the new state.
 
-Semantic collisions require explicit review; they are not automatically merged merely because both writers were authorized.
+Semantic collisions are not resolved by automatic last-write-wins merge.
+
+## Per-Subject and Global History
+
+Pathfinder should support operator concepts equivalent to:
+
+```text
+log <subject>
+show <change_id>
+diff <change_a> <change_b>
+```
+
+These are projections over historical intelligence/change/audit data. They do not require duplicating every machine processing event into ChangeRecord.
+
+## Structured Diff
+
+Pathfinder may render a semantic diff such as:
+
+```text
+threat_classification:
+    - suspicious
+    + malicious
+
+confidence:
+    - MODERATE
+    + HIGH
+```
+
+This represents a change in the derived current interpretation.
+
+Internally, the actual historical records remain append-only.
+
+## Revert
+
+A conceptual `revert <change_id>` creates a new forward-moving ChangeSet that restores/supersedes current interpretation as permitted.
+
+> **Revert creates history. Revert never removes history.**
+
+## No Reset / No Force Push
+
+Pathfinder has no ordinary semantic equivalent of:
+
+```text
+git reset --hard
+git push --force
+```
+
+for authoritative intelligence history.
+
+Corrections move forward.
+
+History is not rewritten to make mistakes disappear.
 
 ## Changelog Integrity
 
-Phase 0 requires append-only semantics, stable identities, ordered parent relationships where used, and audit linkage.
+Phase 0 requires append-only semantics, stable identities, explicit base/parent lineage where used, atomic ChangeSets, and audit linkage.
 
-Future implementation may strengthen this with record hashes, hash chaining, signatures, or an external journal/witness if warranted. Phase 1 should not overbuild those mechanisms before the basic model is proven.
+Future implementation may strengthen this with record hashes, hash chaining, signatures, or an external witness if warranted.
+
+Phase 1 should prove the basic model before overbuilding integrity machinery.
 
 ## Administrative Changes
 
-The same reconstructable change-history approach should eventually cover material configuration changes such as source reliability profiles, integration enable/disable state, lifecycle profiles, mapping profiles, ATT&CK dataset versions, export policy, and security-sensitive configuration.
+The same reconstructable change-history approach may cover material governed configuration such as source enable/disable state, lifecycle profiles, mapping profiles, integration trust, ATT&CK dataset version, export policy, and security-sensitive configuration.
 
-These are not intelligence Assessments, but they can materially affect Pathfinder behavior.
+These are configuration changes, not intelligence Assessments.
 
 ## Physical Destruction and Raw Artifact Exception
 
-The historical record must remain.
+The historical record remains.
 
-If an external legal, contractual, or handling requirement requires destruction of raw source bytes, Pathfinder still retains immutable historical metadata describing the artifact and its destruction, including identity, hash, original byte length, received time, source, destruction state, destruction time, authority, policy/legal basis, associated SourceRecords, and prior processing lineage.
+If law, contract, handling policy, or another authorized retention requirement mandates destruction of SourceArtifact bytes, Pathfinder retains immutable metadata describing the artifact and destruction action.
 
 ```text
-raw bytes destroyed by mandatory policy
-    != historical record removed
+raw bytes destroyed by policy != historical record removed
 ```
-
-The bytes may become unavailable. The history proving that they existed and explaining what happened to them remains.
 
 ## Analyst Identity and Compromise
 
-Historical actions remain attributable even if the analyst account is later renamed, disabled, removed from the identity provider, or determined to have been compromised.
+Historical actions remain attributable if the analyst identity is later renamed, disabled, removed from the identity provider, or determined to have been compromised.
 
-Actions from a compromised identity are corrected through forward-moving records, not historical erasure.
+Actions performed by a compromised identity are remediated through forward-moving corrective records, not erasure.
 
 ## Common Truth Separations
 
 ```text
-record incorrect                  != record deleted
-record revoked                    != record deleted
-record superseded                 != record deleted
-record disputed                   != record deleted
-record conflicted                 != record deleted
-source withdrew claim             != original Assertion deleted
-sensor malfunction                != original Sighting deleted
-analyst mistake                   != original Assessment deleted
-parser defect                     != original processing deleted
-new interpretation                != previous interpretation rewritten
-current view                      != historical record
-analyst change                    != historical rewrite
-ChangeRecord                      != intelligence object
-current-view diff                 != database row mutation
-revert                            != erase
-correction                        != reset
-supersession                      != deletion
-analyst override                  != magic truth flag
-machine Assessment                != analyst Assessment
-review approval                   != source Assertion
-ATT&CK unmapped                   != threat unimportant
-commit message                    != analytical basis
-ChangeSet                         != arbitrary bulk mutation
-stale base                        != permission for last-write-wins
-administrator                     != intelligence author
-legal raw-byte destruction        != historical record destruction
+record incorrect != record deleted
+record revoked != record deleted
+record superseded != record deleted
+record disputed != record deleted
+source withdrawal != original Assertion deleted
+sensor malfunction != original Sighting deleted
+analyst mistake != original Assessment deleted
+new interpretation != previous interpretation rewritten
+current view != historical record
+ChangeRecord != intelligence object
+ChangeSet != bulk job
+bulk job PARTIAL != partial ChangeSet commit
+revert != erase
+correction != reset
+machine Assessment != analyst Assessment
+workflow approval != analytical conclusion
+ATT&CK unmapped != threat unimportant
+stale base != last-write-wins permission
+administrator != intelligence author
+raw-byte destruction != historical-record destruction
 ```
 
 ## Absolute Historical Rule
@@ -514,41 +578,25 @@ Why?
 What is the current interpretation now?
 ```
 
-The first answer must never be reconstructed from the last answer.
-
-The original record itself remains the source for the original state.
+The original state must be reconstructed from original historical records, not inferred backward from the current view.
 
 ## Phase 0.17 Exit Decision
 
 Phase 0.17 is satisfied when Pathfinder accepts that:
 
 1. **The original record is maintained no matter what.**
-2. Historical intelligence records are never corrected through destructive mutation.
-3. Incorrect records remain historical records and receive later corrective interpretation.
-4. Analysts change Pathfinder interpretation through new attributable records.
-5. Every material analyst change creates an append-only ChangeRecord.
-6. Multi-record operations may be grouped into ChangeSets.
-7. ChangeRecord and ChangeSet identities use UUIDv7.
-8. Pathfinder supports Git-like per-subject historical reconstruction and conceptual log/show/diff views.
-9. Structured diffs never replace immutable intelligence history.
-10. Source withdrawals never erase original source Assertions.
-11. Revocation never means historical deletion.
-12. Supersession never means historical deletion.
-13. Conflict resolution never removes opposing intelligence.
-14. Parser and mapping reprocessing never overwrites earlier processing history.
-15. Sightings remain even when later shown to have resulted from sensor error.
-16. Analyst mistakes are corrected by new records.
-17. Compromised-account actions remain identifiable historical actions.
-18. Revert creates another forward-moving change.
-19. Pathfinder provides no normal reset-hard equivalent for intelligence history.
-20. Pathfinder provides no force-push equivalent for authoritative history.
-21. Current views are derived from immutable history rather than serving as the historical source themselves.
-22. Parent/change lineage may protect against stale concurrent modifications.
-23. Pathfinder does not use last-write-wins for competing analytical judgments.
-24. ATT&CK remains optional classification metadata and NOT_MAPPED causes no downgrade.
-25. Analysts may legitimately leave uncertainty unresolved.
-26. Machine and human authorship remain distinguishable.
-27. High-impact operations support explicit scope, audit, and preview where practical.
-28. Material administrative changes can use the same reconstructable change-history approach.
-29. If mandatory policy requires destruction of underlying raw bytes, immutable historical metadata and destruction history remain.
-30. Pathfinder can always reconstruct the original record independently of its current interpretation.
+2. Analyst correction creates new attributable records instead of destructive mutation.
+3. Source Assertions and Sightings are not rewritten because interpretation changes.
+4. Material analyst changes create ChangeRecords.
+5. Multi-record logical changes use ChangeSets where appropriate.
+6. **A committed ChangeSet is atomic.**
+7. A bulk operation may be PARTIAL without any committed ChangeSet being partial.
+8. Machine and human Assessment authority remain distinct.
+9. Conflict resolution preserves opposing records and uncertainty may remain unresolved.
+10. Current-view resolution never silently uses newest, highest-confidence, human-wins, machine-wins, majority, or last-write-wins.
+11. Unresolved materially incompatible Assessments produce an explicit conflicted current interpretation.
+12. High-impact operations support scope validation, audit, and preflight/preview where practical.
+13. Stale overlapping analyst changes may be rejected with explicit stale-base semantics.
+14. Revert creates new history; reset-hard/force-push semantics do not exist for authoritative history.
+15. ATT&CK remains optional classification/reference metadata.
+16. Mandatory raw-byte destruction does not destroy the historical metadata proving what occurred.
