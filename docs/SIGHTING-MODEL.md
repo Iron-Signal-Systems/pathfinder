@@ -2,11 +2,11 @@
 
 ## Purpose
 
-A `Sighting` records that an identified observation authority observed a specific Pathfinder subject within an explicit time and context.
+A `Sighting` records that an identified observation authority observed a specific Pathfinder subject within explicit time and context.
 
 A Sighting answers:
 
-> **What was observed, where was it observed, by whom or what, and when?**
+> **What was observed, where applicable, by whom or what, and when?**
 
 A Sighting does not answer:
 
@@ -14,26 +14,19 @@ A Sighting does not answer:
 
 That belongs to Assertions, Relationships, and Assessments.
 
-The governing principle is:
-
 > **A sighting records an observation. It does not silently become a conclusion.**
 
 ```text
-sighting
-    != maliciousness
-
-sighting
-    != compromise
-
-sighting
-    != attribution
-
-sighting
-    != successful exploitation
-
-sighting
-    != intent
+Sighting != maliciousness
+Sighting != compromise
+Sighting != attribution
+Sighting != successful exploitation
+Sighting != intent
 ```
+
+The governing historical invariant is:
+
+> **The original record is maintained no matter what.**
 
 ## Sighting Identity
 
@@ -43,26 +36,9 @@ Every Sighting receives a Pathfinder-controlled identity.
 sighting_id = UUIDv7
 ```
 
-The identity of the observation is separate from the identity of the subject being observed.
+The observation identity is separate from the observed subject identity.
 
-For example:
-
-```text
-Observable:
-    203.0.113.17
-
-Sighting A:
-    observed by Stronghold
-    at 14:03
-
-Sighting B:
-    observed by Stronghold
-    at 15:17
-```
-
-The Observable is one Pathfinder object.
-
-The observations are separate historical events.
+Repeated observations of one Observable produce separate Sightings unless an explicit source/integration aggregation contract says otherwise.
 
 ## Conceptual Fields
 
@@ -70,185 +46,112 @@ A Sighting should preserve at least:
 
 ```text
 sighting_id
-
 subject_id
-
 observer_type
-
 observer_identity
-
 origin
-
+sighting_form
 observed_at_state
-observed_at / not_known
-
-first_seen / not_applicable
-last_seen / not_applicable
-
-observation_count / not_applicable
-
+observed_at / NOT_KNOWN
+first_seen / NOT_APPLICABLE
+last_seen / NOT_APPLICABLE
+observation_count / NOT_APPLICABLE
 observation_context
-
-source_record_id / not_applicable
-
-assertion_id / not_applicable
-
-external_observation_id / not_known
-
+source_record_id / NOT_APPLICABLE
+assertion_id / NOT_APPLICABLE
+external_observation_id / NOT_KNOWN
 received_at
-
 created_at
 ```
 
-Additional source-specific observation details remain in provenance or explicitly defined context structures.
+Source/integration-specific context remains governed by explicit contracts rather than an unrestricted semantic key/value bag.
 
 ## Sighting Subject
 
-A Sighting must identify exactly what Pathfinder considers to have been observed.
+A Sighting identifies exactly what Pathfinder considers to have been observed.
 
-Initial supported subjects should include:
+Initial supported subjects include:
 
 ```text
 Observable
-
 Indicator
 ```
 
-The primary use should normally be an Observable.
+The primary case should normally be an Observable.
 
 Example:
 
 ```text
-Sighting:
-    subject:
-        IPv4 203.0.113.17
+Sighting subject:
+    IPv4 203.0.113.17
 ```
 
-rather than:
+rather than a conclusion such as:
 
 ```text
-Sighting:
-    subject:
-        "C2 infrastructure"
-```
-
-because the first is an observation and the second already includes interpretation.
-
-Future object types may become valid Sighting subjects only after their observation semantics are defined.
-
-## Observable Sighting Versus Indicator Sighting
-
-These are materially different.
-
-```text
-Observed:
-    203.0.113.17
-```
-
-means the Observable was observed.
-
-If Pathfinder also has an Indicator relating to that address, Pathfinder may correlate the two.
-
-It must not rewrite the observation as:
-
-```text
-Observed:
+Sighting subject:
     malicious C2
 ```
 
-unless the observation system actually established that separate fact under its own contract.
-
-Therefore:
+An Observable sighted does not mean an associated Indicator was proven.
 
 ```text
-Observable sighted
-    != Indicator proven
+Observable sighted != Indicator proven
 ```
+
+Future subject classes require explicit observation semantics.
 
 ## Sighting Origin
 
-Pathfinder distinguishes how a Sighting entered the system.
-
-Initial origin classes:
+Initial Sighting origins are:
 
 ```text
 INTEGRATION_OBSERVED
-
 SOURCE_REPORTED
-
 ANALYST_RECORDED
 ```
 
 ### INTEGRATION_OBSERVED
 
-A trusted integration supplies an observation produced by another system operating within its defined authority.
+A trusted integration supplies an observation produced within its defined domain authority.
 
-Examples:
+Examples include Stronghold network observations and FI file observations.
 
-```text
-Stronghold network observation
-
-FI file observation
-
-future approved ISS observation source
-```
-
-Pathfinder records the observation while preserving the originating system's authority.
+Pathfinder records the Sighting while preserving the originating product/system authority.
 
 ### SOURCE_REPORTED
 
-An external intelligence source reports that an observation occurred.
+An external source reports that an observation occurred.
 
-Example:
-
-```text
-Vendor A reports:
-    IP X observed communicating with malware samples
-```
-
-In this case Pathfinder should preserve both:
+Pathfinder preserves the external report as an Assertion/SourceRecord path and may represent the reported observation as a Sighting while retaining external observer/source authority.
 
 ```text
-Assertion:
-    Vendor A says the observation occurred
-
-Sighting:
-    observer = Vendor A or identified observer
-    basis = Assertion
+Pathfinder received report != Pathfinder directly observed subject
 ```
-
-The external report does not become a Pathfinder-direct observation.
 
 ### ANALYST_RECORDED
 
-An authorized analyst records an observation from material or investigation available to the analyst.
+An authorized analyst records an observation established through material/investigation available to the analyst.
 
-The analyst identity and basis must remain attributable.
+The analyst principal and basis remain attributable.
+
+The analyst does not impersonate Stronghold, FI, or an external source as the observer.
 
 ## Observation Authority
 
-A Sighting must identify the authority responsible for the observation.
+A Sighting identifies the authority responsible for the observation.
 
-Examples:
+Examples include:
 
 ```text
 Stronghold appliance
-
 FI collector
-
 external provider
-
 human analyst
-
-approved sensor/integration
+approved future sensor/integration
 ```
 
-Pathfinder itself must not claim to have observed something merely because it received intelligence about it.
-
-```text
-Pathfinder received report
-    != Pathfinder observed subject
-```
+Pathfinder receiving information does not make Pathfinder the observation authority.
 
 ## Stronghold Sightings
 
@@ -258,934 +161,391 @@ Example:
 
 ```text
 Stronghold observed:
-
-source asset:
-    FIN-PC-17
-
-destination:
-    203.0.113.17
-
-destination port:
-    443
-
-protocol:
-    TCP
-
-observed at:
-    2026-09-09T14:03:17Z
+    source asset = FIN-PC-17
+    destination = 203.0.113.17
+    destination port = 443
+    protocol = TCP
+    observed_at = T
 ```
 
-Pathfinder may create:
+Pathfinder may record a Sighting of the destination/contact and separately correlate it with threat intelligence.
+
+A later Assessment may conclude high operational relevance, but the Stronghold Sighting itself remains the network observation.
 
 ```text
-Sighting:
-    subject:
-        203.0.113.17
-
-    observer:
-        Stronghold
-
-    observed_at:
-        2026-09-09T14:03:17Z
-
-    context:
-        FIN-PC-17
-        destination
-        TCP/443
-```
-
-Pathfinder may separately know:
-
-```text
-Indicator:
-    203.0.113.17 associated with reported C2 activity
-```
-
-Combining those records may support an Assessment such as:
-
-```text
-operational_relevance = HIGH
-```
-
-But the Sighting itself remains:
-
-```text
-FIN-PC-17 communicated with 203.0.113.17
-```
-
-It does not become:
-
-```text
-FIN-PC-17 compromised
+Stronghold contact observed != host compromised
 ```
 
 ## FI Sightings
 
-FI may supply authoritative file observations.
+FI may supply authoritative file/file-system observations.
 
 Example:
 
 ```text
 FI observed:
-
-system:
-    FS-03
-
-file:
-    C:\Data\example.exe
-
-SHA-256:
-    abc...
-
-observed at:
-    ...
+    system = FS-03
+    path = C:\Data\example.exe
+    sha256 = abc...
+    observed_at = T
 ```
 
-Pathfinder may create:
+Pathfinder may record a Sighting of the SHA-256 with FI observation context.
 
 ```text
-Sighting:
-    subject:
-        SHA256 abc...
-
-    observer:
-        FI
-
-    context:
-        system FS-03
-        path C:\Data\example.exe
-```
-
-If Pathfinder intelligence relates that SHA-256 to malware, that relationship exists separately.
-
-Therefore:
-
-```text
-hash sighted on host
-    != malware executed
-
-hash sighted on host
-    != host compromised
+hash sighted on host != malware executed
+hash sighted on host != host compromised
 ```
 
 ## Atlas Context
 
-Atlas may provide authoritative asset/environment context associated with a Sighting.
+Atlas may provide asset/environment context associated with a Sighting.
 
-For example:
+That context does not become part of the original Stronghold/FI observation and does not transfer Atlas asset authority to Pathfinder.
 
-```text
-Stronghold sighting
-    |
-    v
-asset reference
-    |
-    v
-Atlas context:
-    system = FIN-PC-17
-    role = finance workstation
-```
-
-The Atlas information does not become part of the original Stronghold observation.
-
-Pathfinder may reference the Atlas asset identity or use it during assessment while preserving authority boundaries.
+Historical asset context must remain distinguishable from current Atlas state.
 
 ## Point Sightings
 
 A point Sighting represents an observation at one known observation time.
 
-Example:
+Pathfinder preserves timestamp precision and does not invent precision.
 
-```text
-observed_at:
-    2026-09-09T14:03:17Z
-```
+A source supplying only a date must not be silently expanded into a precise midnight timestamp as though the time were known.
 
-Pathfinder must preserve available timestamp precision.
+## Bounded Aggregate Sightings
 
-A source providing only:
+Some observation systems provide bounded summaries.
 
-```text
-2026-09-09
-```
-
-must not be silently expanded into:
-
-```text
-2026-09-09T00:00:00.000000Z
-```
-
-as though that precision were known.
-
-Time precision must remain explicit.
-
-## Aggregated Sightings
-
-Some observation systems may provide summaries instead of one event per observation.
-
-Example:
-
-```text
-first_seen:
-    14:00
-
-last_seen:
-    15:00
-
-observation_count:
-    427
-```
-
-Pathfinder may represent this as a bounded aggregate Sighting when the integration contract explicitly permits it.
-
-Initial Sighting forms:
+Initial forms are:
 
 ```text
 POINT
-
 BOUNDED_AGGREGATE
 ```
 
-A bounded aggregate must preserve:
+A bounded aggregate should preserve where supplied:
 
 ```text
 first_seen
-
 last_seen
-
 observation_count
-
 aggregation_method
-
 aggregation_version
 ```
 
-where applicable.
-
-An aggregate is not equivalent to retained individual observation events.
+An aggregate is not retained individual event history.
 
 ```text
-aggregate sighting
-    != raw event history
+aggregate Sighting != raw event history
 ```
+
+Pathfinder does not fabricate individual events from an aggregate count.
 
 ## No Invented Observation Count
 
-If an external source says:
+If a source says “frequently observed,” Pathfinder does not convert that phrase into an invented numeric count.
 
-```text
-"frequently observed"
-```
-
-Pathfinder must not convert that phrase into:
-
-```text
-observation_count = 50
-```
-
-Likewise, a missing count is:
-
-```text
-not_known
-```
-
-not:
-
-```text
-1
-```
-
-unless the source semantics establish that the record itself represents exactly one observation.
+A missing count remains `NOT_KNOWN` or `NOT_APPLICABLE` according to the source contract.
 
 ## Repeated Sightings
 
-Repeated observations may matter operationally.
+Repeated observations may matter for recency, frequency, and operational relevance.
 
-Pathfinder should preserve:
-
-```text
-frequency
-recency
-first seen
-last seen
-observer diversity
-local-system diversity
-```
-
-where available.
-
-But repeated Sightings do not become independent threat-intelligence corroboration.
+They do not become independent corroboration of maliciousness.
 
 ```text
-500 sightings
-    != 500 independent sources
+500 Sightings != 500 independent sources
 ```
-
-Repeated activity may affect an Assessment.
-
-It does not alter the meaning of the Sightings themselves.
 
 ## Observation Context
 
-A Sighting may include structured context necessary to understand the observation.
-
-Potential context includes:
+Potential structured Sighting context includes:
 
 ```text
 asset reference
-
 network direction
-
 source/destination role
-
 port
-
 protocol
-
 file path
-
 process context
-
 sensor identity
-
 interface
-
 collection point
-
 tenant/customer boundary
-
 external observation context
 ```
 
-Context must be governed by the integration producing it.
-
-Pathfinder must not create a universal arbitrary key/value bag and treat every caller-defined field as trusted semantics.
-
-Source-specific context should remain namespaced or contract-defined.
-
-## Context Does Not Become Identity
-
-For example:
+Context belongs to the observation and does not become identity of the observed Observable.
 
 ```text
-IP X observed from FIN-PC-17
+IP observed from FIN-PC-17 != FIN-PC-17 is part of IP identity
+file hash observed at path X != path is part of hash identity
 ```
-
-does not make:
-
-```text
-FIN-PC-17
-```
-
-part of the identity of IP X.
-
-Likewise:
-
-```text
-SHA256 X observed at C:\Temp\a.exe
-```
-
-does not make the path part of the SHA-256 Observable.
-
-Context belongs to the observation.
 
 ## Observation Time Versus Receipt Time
 
-Pathfinder must preserve:
+Pathfinder preserves:
 
 ```text
 observed_at
-
 received_at
 ```
 
 separately.
 
-Example:
+Late delivery does not rewrite observation time.
 
-```text
-Stronghold observed:
-    14:03
-
-Pathfinder received:
-    14:04
-```
-
-Pathfinder must not claim the event occurred at 14:04 merely because that is when the Sighting arrived.
-
-```text
-observation time
-    != receipt time
-```
-
-## Delayed Sightings
-
-A Sighting may arrive long after the observation occurred.
-
-Example:
-
-```text
-observed:
-    September 1
-
-received by Pathfinder:
-    September 9
-```
-
-This remains a September 1 observation.
-
-Late arrival may be relevant to processing or assessment but does not rewrite event time.
-
-## Unknown Observation Time
-
-If a source establishes that an observation occurred but does not establish when:
+If observation time is unknown:
 
 ```text
 observed_at_state = NOT_KNOWN
 ```
 
-Pathfinder must not substitute:
+Pathfinder does not substitute publication, retrieval, receipt, or current time.
 
-```text
-publication time
-retrieval time
-receipt time
-current time
-```
-
-for the missing observation time.
-
-## Time Range
-
-A source may report:
-
-```text
-observed sometime between
-    September 1
-and
-    September 3
-```
-
-A future precision model may permit explicit observation windows.
-
-Until defined, Pathfinder must not collapse uncertain ranges into an invented precise timestamp.
+Uncertain time windows remain uncertain rather than being collapsed into a fabricated instant.
 
 ## Sighting Provenance
 
-Every Sighting must be traceable to its origin.
+Every Sighting is traceable to origin.
 
-For an ISS integration:
+ISS integration example:
 
 ```text
 Sighting
-   ↓
+    ↓
 integration record identity
-   ↓
+    ↓
 Stronghold/FI authoritative observation
 ```
 
-For an external source:
+External-source example:
 
 ```text
 Sighting
-   ↓
+    ↓
 Assertion
-   ↓
+    ↓
 SourceRecord
-   ↓
-preserved source
+    ↓
+SourceArtifact
 ```
 
-For an analyst:
+Analyst example:
 
 ```text
 Sighting
-   ↓
+    ↓
 analyst principal
-   ↓
+    ↓
 recorded basis
 ```
 
-## External Observation Identifier
+## External Observation Identifier and Idempotency
 
-Where the originating system supplies a stable event or observation identifier, Pathfinder preserves it separately.
+Where an observation authority supplies a stable event identifier, Pathfinder preserves it separately from `sighting_id`.
 
-Example:
+A retry delivering the same external event twice may resolve to one Sighting where the integration contract establishes stable identity.
 
-```text
-observer:
-    Stronghold
-
-external_observation_id:
-    ...
-```
-
-The external identifier does not replace Pathfinder's `sighting_id`.
-
-## Sighting Deduplication
-
-Pathfinder must not deduplicate Sightings simply because:
+Delivery/retry processing remains historical.
 
 ```text
-same subject
-same observer
-same timestamp
+duplicate delivery != repeated observation
 ```
 
-Two real observation events may share those values.
-
-Likewise, retries may cause one external observation to be delivered more than once.
-
-Where an authoritative external observation identifier exists, the integration may use it to identify duplicate delivery.
-
-Therefore:
-
-```text
-duplicate delivery
-    != repeated observation
-```
-
-This distinction must be preserved.
-
-## Idempotent Integration
-
-ISS integrations should support idempotent delivery where practical.
-
-If Stronghold delivers observation `ABC123` twice because the first acknowledgement was lost:
-
-```text
-delivery 1
-delivery 2
-```
-
-should resolve to one Pathfinder Sighting if the integration contract establishes that both deliveries represent the same authoritative Stronghold observation.
-
-Pathfinder should preserve delivery/retry processing history separately.
+Pathfinder does not deduplicate merely because subject, observer, and timestamp happen to match.
 
 ## Conflicting Sightings
 
-Two Sightings may appear inconsistent.
+Apparently inconsistent Sightings are not automatically invalid.
 
-Example:
+Different observation points may legitimately see different results because of DNS behavior, geography, cache state, load balancing, timing, or other context.
 
-```text
-System A:
-    domain resolved to IP X at 14:00
-
-System B:
-    domain resolved to IP Y at 14:00
-```
-
-This is not automatically an error.
-
-Possible causes include:
-
-```text
-DNS load balancing
-
-resolver differences
-
-geography
-
-cache state
-
-observation-point differences
-
-source error
-```
-
-Pathfinder preserves both observations.
-
-Assessment determines whether they are meaningfully conflicting.
+Pathfinder preserves both observations and uses Assessment/IntelligenceConflict where the difference is materially incompatible.
 
 ## Negative Observation
 
-Pathfinder must be very careful with claims that something was **not observed**.
+`not observed` is meaningful only relative to defined, sufficiently complete observation coverage.
 
 ```text
-not observed
+no Sighting found != activity did not occur
 ```
 
-is meaningful only relative to known observation coverage.
+Pathfinder v1 does not create ordinary negative Sightings unless a future coverage contract can establish the required observation scope/time/completeness.
 
-For example:
+## Coverage Is Separate From Sighting
+
+Coverage is not a property of one Sighting.
+
+It belongs to the observing integration/source and applicable scope/time.
+
+The canonical `CoverageState` values are:
 
 ```text
-Stronghold observed no communication with IP X
-between 14:00 and 15:00
+COMPLETE
+PARTIAL
+INCOMPLETE
+NOT_KNOWN
 ```
 
-can only be represented strongly if Pathfinder knows that:
-
-```text
-Stronghold collection was active
-
-the applicable interfaces were covered
-
-the relevant time range was available
-
-processing was complete
-```
-
-Otherwise:
-
-```text
-no sighting found
-    != activity did not occur
-```
-
-Pathfinder v1 should therefore not create ordinary negative Sightings.
-
-Negative-observation semantics should remain deferred until coverage/completeness contracts can support them safely.
-
-## Collection Completeness
-
-A Sighting query must not imply complete observational history when the underlying observation source is incomplete.
+`DEGRADED` and `UNAVAILABLE` are `HealthState` values describing a subsystem/integration, not CoverageState values.
 
 Example:
 
 ```text
-Sightings found:
-    0
-
-Stronghold coverage:
-    incomplete
+Stronghold integration health = DEGRADED
+Stronghold coverage = INCOMPLETE
+Sightings found = 0
 ```
 
-must not be presented as:
+The correct conclusion is:
 
 ```text
-This system never communicated with the indicator.
+No matching Sighting was found within the available/incomplete observation coverage.
 ```
 
-The accurate conclusion is closer to:
+not:
 
 ```text
-No matching Sighting was found within the available Pathfinder observation coverage.
+The communication never occurred.
 ```
 
-The API should expose coverage state structurally.
+## No Result Semantics
 
-## Observation Coverage Is Separate
-
-Coverage information belongs to the observing integration or processing state.
-
-It is not part of the Sighting itself.
-
-Possible future states include:
+A Sighting query must account for:
 
 ```text
-COMPLETE
-
-PARTIAL
-
-DEGRADED
-
-UNAVAILABLE
-
-NOT_KNOWN
+coverage state
+processing backlog
+index state
+authorization scope
+integration/source health
 ```
 
-These states will be reconciled with the Phase 0.18 audit/completeness contract.
+Zero visible results do not automatically establish universal absence.
 
-## Sighting and Relationships
+## Sighting and Relationship
 
-A Sighting may support creation or assessment of a Relationship.
+A Sighting may support a Relationship.
 
-For example:
-
-```text
-DNS observation:
-
-Domain X resolved to IP Y
-```
-
-may produce:
+Example:
 
 ```text
-Sighting:
+DNS Sighting:
     Domain X observed resolving to IP Y
-```
 
-and support:
-
-```text
 Relationship:
     Domain X resolves_to IP Y
 ```
 
-The point-in-time Sighting remains distinct from the intelligence Relationship.
-
-The Relationship must not become timeless merely because a Sighting exists.
+The point observation remains distinct from the Relationship and does not silently become an indefinite relationship.
 
 ## Sighting and Assessment
 
-Sightings are inputs to Assessments.
+Sighting is an allowed Assessment subject where the Assessment type permits it.
+
+A Sighting may also form the basis for an Assessment of another subject.
 
 Example:
 
 ```text
 Indicator:
-    IP X associated with reported C2
+    IP X reported C2
 
 Sighting:
-    Stronghold observed FIN-PC-17 contacting IP X
+    Stronghold observed local contact with IP X
 
 Assessment:
     operational relevance = HIGH
 ```
 
-This is a clean progression:
+The Sighting remains unchanged.
+
+## Observation Validity
+
+If later investigation establishes that a sensor generated an invalid observation, Pathfinder preserves the Sighting and creates an Assessment such as:
 
 ```text
-threat intelligence
-        +
-local observation
-        ↓
-assessment
+subject = Sighting A
+assessment_type = OBSERVATION_VALIDITY
+assessment_value = INVALID
 ```
 
-The Sighting itself remains unchanged.
+```text
+invalid observation != historical Sighting deleted
+```
 
 ## Sighting and Compromise
 
-Pathfinder must never implement:
+Pathfinder must never implement an implicit rule equivalent to:
 
 ```text
-if sighting matches malicious indicator:
+if Sighting matches malicious Indicator:
     compromised = true
 ```
 
-as an implicit semantic rule.
-
-A matching Sighting may be extremely important.
-
-It may justify:
-
-```text
-investigation candidate
-
-hunt candidate
-
-high operational relevance
-
-candidate downstream action
-```
-
-But compromise is a separate conclusion requiring an applicable Assessment contract.
+A match may justify investigation, hunting, high operational relevance, or candidate downstream action, but compromise is a separate Assessment.
 
 ## Sighting and Enforcement
 
-A Sighting never directly authorizes:
+A Sighting never directly authorizes firewall blocking, endpoint isolation, account disablement, file deletion, or other remediation.
 
-```text
-firewall block
+> **High confidence is still not authorization.**
 
-endpoint isolation
+## Historical Preservation
 
-account disable
+Later intelligence, analyst review, sensor defect discovery, source correction, or lifecycle change never rewrites the original Sighting.
 
-file deletion
-
-quarantine
-
-remediation
-```
-
-A downstream action requires its own authorization boundary.
-
-```text
-sighting
-    != authorization
-```
-
-## Source-Reported Sighting Versus Direct Integration
-
-Pathfinder must preserve the difference between:
-
-```text
-Vendor A reports that IP X was observed
-```
-
-and:
-
-```text
-Stronghold directly reports its own observation of IP X
-```
-
-Both may become Sightings.
-
-But their provenance differs:
-
-```text
-SOURCE_REPORTED
-```
-
-versus:
-
-```text
-INTEGRATION_OBSERVED
-```
-
-A UI/API must not flatten those into indistinguishable records.
-
-## Analyst-Recorded Sighting
-
-An analyst may record a Sighting when authorized.
-
-Example:
-
-```text
-Analyst reviewed incident artifact
-and observed SHA256 X
-```
-
-Pathfinder preserves:
-
-```text
-analyst principal
-
-observation time if known
-
-recorded time
-
-basis
-
-context
-```
-
-If the analyst cannot establish when the underlying observation occurred:
-
-```text
-observed_at = NOT_KNOWN
-```
-
-The time of analyst entry must not be substituted.
-
-## Sighting Retention
-
-Sightings are historical records.
-
-Expiration of an Indicator does not delete its Sightings.
-
-```text
-Indicator expired
-    != Sighting erased
-```
-
-Likewise:
-
-```text
-Assessment changed
-    != Sighting rewritten
-```
-
-Retention/destruction authority is handled separately.
-
-## Sighting Reprocessing
-
-A Sighting may later participate in new correlations or Assessments.
-
-The original Sighting is not rewritten simply because Pathfinder learns new intelligence.
-
-Example:
-
-```text
-September 1:
-    Stronghold observes IP X
-
-September 9:
-    Pathfinder receives intelligence linking IP X to malware
-```
-
-Pathfinder may now produce a new Assessment.
-
-It must not make the September 1 Sighting appear to have been recognized as malicious on September 1.
-
-```text
-later intelligence
-    != earlier observation interpretation
-```
+Corrections move forward through Assessments, conflicts, or other attributable records.
 
 ## Common Truth Separations
 
 ```text
-Sighting                         != Assertion
-
-Sighting                         != Indicator
-
-Sighting                         != Assessment
-
-Sighting                         != maliciousness
-
-Sighting                         != compromise
-
-Sighting                         != attribution
-
-Sighting                         != intent
-
-Sighting                         != successful exploitation
-
-Observable sighted               != Indicator proven
-
-hash sighted                     != malware executed
-
-IP contacted                     != endpoint compromised
-
-local Sighting                   != independent threat-source corroboration
-
-repeated Sightings               != repeated independent corroboration
-
-observation count                != source count
-
-observation time                 != receipt time
-
-receipt time                     != event time
-
-unknown observation time         != receipt time
-
-point observation                != indefinite Relationship
-
-aggregate Sighting               != raw event history
-
-duplicate delivery               != repeated observation
-
-no Sighting found                != activity did not occur
-
-incomplete coverage              != negative observation
-
-source-reported Sighting         != direct local observation
-
-analyst-recorded Sighting        != sensor observation
-
-Sighting context                 != Observable identity
-
-later intelligence               != earlier interpretation
-
-Sighting                         != enforcement authority
+Sighting != maliciousness
+Sighting != compromise
+Sighting != attribution
+Sighting != successful exploitation
+Observable sighted != Indicator proven
+Pathfinder receipt != Pathfinder observation
+Source-reported Sighting != local direct observation
+analyst-recorded Sighting != integration Sighting
+point observation != indefinite Relationship
+aggregate Sighting != individual event history
+observation count missing != 1
+repeated Sightings != independent corroboration
+duplicate delivery != repeated observation
+context != Observable identity
+observed_at != received_at
+unknown observed_at != receipt time
+no Sighting != negative observation
+CoverageState != HealthState
+DEGRADED health != INCOMPLETE coverage
+zero query results != activity never occurred
+sensor defect != Sighting deleted
+Sighting match != compromise
+Sighting != enforcement authority
 ```
 
 ## Phase 0.8 Exit Decision
 
 Phase 0.8 is satisfied when Pathfinder accepts that:
 
-1. A Sighting is a first-class UUIDv7 historical observation record.
-2. A Sighting identifies an explicit subject, observer, time state, origin, context, and provenance.
-3. Initial Sighting origins are `INTEGRATION_OBSERVED`, `SOURCE_REPORTED`, and `ANALYST_RECORDED`.
-4. External reported observations remain traceable through Assertions and SourceRecords.
-5. ISS integrations retain authority for their underlying observations.
-6. Pathfinder receipt time never substitutes for unknown observation time.
-7. Timestamp precision is preserved rather than manufactured.
-8. Point and bounded-aggregate Sightings remain distinguishable.
-9. Aggregate Sightings do not imply retained raw event history.
-10. Missing counts are not silently converted to one.
-11. Repeated Sightings do not become independent intelligence corroboration.
-12. Duplicate delivery remains distinguishable from repeated observation.
-13. Integrations should support idempotent delivery using authoritative external observation identities where available.
-14. Observation context does not become Observable identity.
-15. A Sighting may support a Relationship or Assessment but remains a separate observation.
-16. A malicious-indicator match does not automatically establish compromise.
-17. Pathfinder v1 does not create ordinary negative Sightings without a defined coverage/completeness contract.
-18. `no sightings found` never implies `activity did not occur` when observation coverage is incomplete or unknown.
-19. Later intelligence and reprocessing do not rewrite what was known when the original Sighting occurred.
-20. Sightings never directly create enforcement authority.
+1. Sighting is a first-class UUIDv7 observation record.
+2. A Sighting records observation and never silently becomes a conclusion.
+3. Observation authority remains attributable to the originating system/source/analyst.
+4. Point and bounded-aggregate Sightings remain distinct.
+5. Counts and timestamps are never invented.
+6. Repeated Sightings do not become independent corroboration.
+7. Duplicate delivery remains distinct from repeated observation.
+8. Observation context does not become Observable identity.
+9. Observation time remains separate from receipt time.
+10. Sighting provenance traces back through integration or SourceRecord/SourceArtifact history.
+11. Coverage is separate from Sighting and uses typed `CoverageState`.
+12. `DEGRADED`/`UNAVAILABLE` are health/capability state rather than coverage state.
+13. Negative-observation claims require established coverage and are not created from missing Sightings.
+14. Sighting may support Relationships and Assessments without becoming either.
+15. Sighting itself may be assessed for observation validity without being rewritten.
+16. Sighting never directly establishes compromise or enforcement authority.
+17. **The original record is maintained no matter what.**
