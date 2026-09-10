@@ -2,91 +2,235 @@
 
 ## Purpose
 
-Pathfinder requires an explicit internal intelligence model before schemas, APIs, collectors, or STIX translation are implemented.
+Pathfinder requires an explicit internal model before schemas, APIs, collectors, or interchange mappings are implemented.
 
-The model must preserve the distinction between:
+The model preserves the distinction between:
 
 ```text
-what was reported
+what was acquired
+what the source claimed
 what was observed
-what Pathfinder inferred
-what Pathfinder assessed
+what Pathfinder normalized or derived
+what Pathfinder or an authorized analyst assessed
+what changed later
 ```
 
-Pathfinder uses its own internal object model. External formats such as STIX may later map into or out of this model but do not define Pathfinder's internal truth.
+Pathfinder uses its own internal model. External formats such as STIX may map into or out of this model but do not define Pathfinder's internal semantics.
 
-## Common Object Identity
+The governing historical invariant is:
 
-Every Pathfinder first-class object receives a Pathfinder-controlled identifier.
+> **The original record is maintained no matter what.**
+
+## Common Identity
+
+Every first-class Pathfinder record receives a Pathfinder-controlled identity.
 
 Initial direction:
 
 ```text
-Pathfinder ID: UUIDv7
+Pathfinder ID = UUIDv7
 ```
 
-External identifiers are retained separately and never replace Pathfinder identity.
+External identifiers remain separate and never replace Pathfinder identity.
 
-Where applicable, objects also preserve creation time, creating authority, source/provenance references, processing lineage, and lifecycle state.
+Where applicable, records preserve creation time, authority, provenance references, processing lineage, lifecycle information, and later change history.
 
-Pathfinder avoids ambiguous null values. Where a field requires a state, explicit values such as `not_known`, `not_observed`, `not_verified`, and `not_applicable` are preferred.
+Pathfinder avoids ambiguous nulls. Explicit states such as `NOT_KNOWN`, `NOT_OBSERVED`, `NOT_VERIFIED`, and `NOT_APPLICABLE` are preferred when a state is required.
+
+## Canonical Object Families
+
+Pathfinder does not place every record into one generic intelligence-object bucket.
+
+The canonical Phase 0 families are:
+
+```text
+SOURCE / PROVENANCE
+    Source
+    SourceCollection
+    RetrievalEvent
+    SourceArtifact
+    SourceRecord
+
+INTELLIGENCE
+    Assertion
+    Observable
+    Indicator
+    Sighting
+    Assessment
+    Relationship
+    ThreatActor
+    Campaign
+    Malware
+    Tool
+    Vulnerability
+    Technique
+    Infrastructure
+    Report
+
+INTELLIGENCE STATE
+    LifecycleEvent
+    IntelligenceConflict
+
+SYSTEM HISTORY
+    ChangeRecord
+    ChangeSet
+    AuditEvent
+    ProcessingRecord
+```
+
+These families may reference each other. They do not become semantically interchangeable merely because they share storage or identifiers.
 
 ## Source
 
-A `Source` identifies the origin from which threat intelligence is obtained.
+A `Source` identifies an intelligence provider or origin known to Pathfinder.
 
-A Source describes who or what originated or supplied intelligence. It does not mean the information supplied by that source is true.
+A Source answers:
 
-Conceptual fields include:
+> **Who or what is the intelligence provider/origin?**
+
+A Source does not mean information from that Source is true, reliable, current, or independently corroborated.
+
+Conceptual fields may include:
 
 ```text
 source_id
 name
 source_type
-ownership / provider identity
-trust configuration
-handling / marking metadata
+provider_identity
 status
+handling_profile
+trust/authentication configuration references
+created_at
+retired_at / NOT_APPLICABLE
+```
+
+Source reliability is not one mutable truth field on Source. Pathfinder reliability judgments are historical `Assessment` records about a Source or SourceCollection.
+
+## SourceCollection
+
+A `SourceCollection` represents a distinct feed, publication stream, TAXII Collection, API collection, or similar source subdivision with its own transport, handling, and collection semantics.
+
+One Source may expose many SourceCollections.
+
+```text
+Source != SourceCollection
+```
+
+## RetrievalEvent
+
+A `RetrievalEvent` records an acquisition attempt.
+
+It answers operational questions such as:
+
+```text
+what was requested
+when it was attempted
+which Source/SourceCollection was involved
+whether transport succeeded
+whether results were complete or partial
+whether retry/checkpoint state changed
+```
+
+A RetrievalEvent may produce zero, one, or many SourceArtifacts.
+
+```text
+retrieval succeeded != intelligence accepted
+```
+
+## SourceArtifact
+
+A `SourceArtifact` is the immutable acquired payload preserved at Pathfinder's source-preservation boundary before semantic interpretation.
+
+Examples include:
+
+```text
+HTTP response entity body
+TAXII response page
+downloaded JSON/CSV/XML document
+vendor export
+advisory document
+analyst-imported source file
+```
+
+A SourceArtifact owns properties such as:
+
+```text
+source_artifact_id
+source_id
+source_collection_id / NOT_APPLICABLE
+retrieval_event_id / NOT_APPLICABLE
+received_at
+source_location
+media_type / NOT_KNOWN
+content_encoding / NOT_KNOWN
+byte_length
+sha256
+preservation_state
+integrity_state
+availability_state
+storage_reference
+handling_profile
+created_at
+```
+
+The exact preserved bytes and Pathfinder preservation digest belong to `SourceArtifact`, not `SourceRecord`.
+
+```text
+SourceArtifact != SourceRecord
 ```
 
 ## SourceRecord
 
-A `SourceRecord` represents a specific item received from a Source.
+A `SourceRecord` is one logical source item represented within a SourceArtifact.
 
-Examples include one API response object, TAXII object, advisory, feed entry, report, or analyst-supplied source artifact.
+Examples include:
+
+```text
+one STIX object within a TAXII response
+one JSON feed object
+one CSV row
+one logical advisory section
+one report item
+```
 
 A SourceRecord answers:
 
-> **What exactly did this source provide to Pathfinder?**
+> **Which logical item within the acquired source material are we referring to?**
 
-A SourceRecord is not the normalized intelligence object.
-
-Conceptually:
+Conceptual lineage:
 
 ```text
 Source
-   |
-   v
-SourceRecord
-   |
-   v
-parsing / normalization
-   |
-   v
-Pathfinder objects
+  ↓
+SourceCollection
+  ↓
+RetrievalEvent
+  ↓
+SourceArtifact        exact acquired bytes
+  ↓
+SourceRecord          logical item + locator
+  ↓
+Assertion
 ```
 
-SourceRecord history must survive later reinterpretation.
+A SourceRecord references its SourceArtifact and preserves a deterministic locator where practical. It does not claim reconstructed parser output is the original received byte sequence.
 
 ## Assertion
 
-An `Assertion` is a first-class attributable claim extracted from or recorded against a SourceRecord.
+An `Assertion` is an attributable claim extracted from or intentionally recorded against a SourceRecord.
 
 It answers:
 
-> **What did this source claim?**
+> **What did the source claim?**
 
-Assertions are distinct from Pathfinder Assessments. The detailed assertion/assessment contract is defined in `ASSERTION-ASSESSMENT-MODEL.md`.
+The source is the authority for the claim. Pathfinder is authoritative for its record that the claim was received and interpreted, not automatically for the real-world truth of the claim.
+
+External-source judgments remain Assertions.
+
+```text
+external source judgment = Assertion
+external source judgment != Pathfinder Assessment
+```
 
 ## Observable
 
@@ -94,192 +238,57 @@ An `Observable` is something that can be observed, referenced, or matched.
 
 An Observable is semantically neutral.
 
-Initial observable classes are defined in `OBSERVABLE-MODEL.md` and include:
+Initial classes are defined by the Observable contract and include IPv4, IPv6, domain, URL, SHA-256, email, and X.509 certificate SHA-256 fingerprint.
 
 ```text
-IPv4 address
-IPv6 address
-domain name
-URL
-SHA-256
-email address
-X.509 certificate SHA-256 fingerprint
+Observable != malicious
+Observable != suspicious
+Observable != benign
+Observable != Indicator
 ```
-
-The presence of an Observable in Pathfinder does not mean malicious, suspicious, benign, compromised, actor-owned, or campaign-related.
 
 ## Indicator
 
-An `Indicator` represents an intelligence assertion that one or more observables or observable patterns have operational threat significance.
+An `Indicator` represents intelligence that one or more Observables or observable patterns have operational threat significance.
 
-An Indicator is not simply an Observable with `malicious=true`.
+An Indicator is not an Observable with `malicious=true`.
 
-An Indicator may refer to one observable, multiple observables, or a defined observable pattern.
+Indicator significance remains supported by attributable Assertions, Assessments, provenance, lifecycle, and conflict state.
 
 ## Sighting
 
-A `Sighting` records that an observable or relevant intelligence object was actually observed by an identified source or system.
+A `Sighting` records an observation made by an identified observation authority.
 
 A Sighting answers:
 
-> **Was this actually observed somewhere, by whom, and when?**
+> **What was observed, by whom or what, where applicable, and when?**
 
-A Sighting does not prove malicious activity, successful exploitation, compromise, attribution, or intent.
+It does not by itself prove malicious activity, compromise, successful exploitation, attribution, or intent.
 
-Where the sighting originates in another ISS product, that product remains authoritative for the underlying observation.
+Where a Sighting originates from another ISS product, that product remains authoritative for the underlying observation.
 
 ## Assessment
 
-An `Assessment` records a judgment about another Pathfinder object, relationship, assertion, source, or source collection under a defined assessment type.
+An `Assessment` records a Pathfinder or authorized human-analyst judgment about an explicitly supported subject.
 
-Assessment authorities may include an external source, Pathfinder processing, or human analyst, but external-source judgments remain Assertions unless explicitly transformed into a Pathfinder Assessment through an attributable process.
-
-Changing an Assessment creates new assessment history or explicit supersession. It does not rewrite the old Assessment.
-
-## Relationship
-
-A `Relationship` states that Pathfinder has information connecting two objects.
-
-General form:
+Initial Assessment authority classes are:
 
 ```text
-SOURCE OBJECT
-      |
- relationship
-      |
-      v
-TARGET OBJECT
+HUMAN_ANALYST
+PATHFINDER_PROCESS
 ```
 
-Relationships are first-class because they require their own identity, provenance, confidence, time bounds, assessment state, and processing lineage.
+External sources are not Pathfinder Assessment authorities. Their judgments remain Assertions.
 
-Directly reported and Pathfinder-derived Relationships remain distinguishable.
-
-## ThreatActor
-
-A `ThreatActor` represents an actor identity or actor construct reported or assessed within threat intelligence.
-
-It may represent a named actor, tracked group, cluster, unknown actor grouping, or source-specific actor identity.
-
-Pathfinder must not assume that two vendor names refer to the same actor merely because reporting suggests similarities. Actor attribution remains an assessment.
-
-## Campaign
-
-A `Campaign` represents a bounded or identified collection of related threat activity.
-
-A Campaign may be source-reported, analyst-defined, or Pathfinder-derived. These origins remain explicit.
-
-Campaign association does not itself prove actor attribution.
-
-## Malware
-
-A `Malware` object represents a malware family, strain, variant, or identified malicious software construct.
-
-The Malware object is not the same thing as an individual file hash.
-
-Multiple hashes may refer to the same malware family. A hash match does not itself prove malware execution.
-
-## Tool
-
-A `Tool` represents software used during threat activity that is not inherently represented as malware.
-
-Examples may include legitimate administration tools, dual-use utilities, offensive-security tools, remote management utilities, and credential tooling.
-
-The presence of a Tool does not imply malicious use.
-
-```text
-tool observed != malicious use established
-```
-
-## Vulnerability
-
-A `Vulnerability` represents a known or tracked vulnerability identity.
-
-Initial external identifiers may include CVE and vendor advisory identifiers.
-
-Pathfinder may own intelligence relationships involving a Vulnerability, but it does not own whether an Atlas asset is actually vulnerable.
-
-## Technique
-
-A `Technique` represents a behavioral classification such as a MITRE ATT&CK technique or sub-technique.
-
-Pathfinder must distinguish source-reported technique, Pathfinder-mapped technique, locally observed behavior consistent with a technique, and any future confirmed observation state.
-
-Technique classification is not proof that behavior occurred locally.
-
-## Infrastructure
-
-An `Infrastructure` object represents a logical infrastructure construct used to group infrastructure-related observables and relationships.
-
-Examples include command-and-control, phishing, payload-delivery, redirect, hosting, or malware-distribution infrastructure.
-
-Infrastructure is not synonymous with one IP address or domain.
-
-Infrastructure ownership and operation are assessments unless directly established through an applicable source.
-
-## Report
-
-A `Report` represents a coherent intelligence publication or analytical product.
-
-Examples include government advisories, vendor threat reports, incident intelligence reports, analyst reports, and Pathfinder-produced intelligence reports.
-
-A Report may reference many Pathfinder objects. A Report is not itself proof of every assertion it contains.
-
-## Object Ownership Rules
-
-Pathfinder owns:
-
-```text
-Pathfinder object identity
-Pathfinder normalization
-Pathfinder relationships
-Pathfinder assessments
-Pathfinder provenance records
-Pathfinder processing history
-Pathfinder lifecycle state
-```
-
-Pathfinder does not silently claim ownership of external truth.
-
-External assertions remain attributable to their source. Stronghold observations remain Stronghold-origin observations. FI observations remain FI-origin observations. Atlas asset facts remain Atlas authority.
-
-Pathfinder may preserve, reference, correlate, and interpret those facts without rewriting their originating authority.
-
-## Core Truth Separations
-
-```text
-Source != SourceRecord
-SourceRecord != Assertion
-Assertion != Assessment
-SourceRecord != Observable
-Observable != Indicator
-Observable != Assessment
-Indicator != Sighting
-Sighting != Assessment
-Relationship != Identity
-Infrastructure != IP address
-Malware != file hash
-Tool != malicious activity
-Technique != observed behavior
-Vulnerability != vulnerable asset
-Report != proof
-ThreatActor association != attribution
-Campaign association != attribution
-external identifier != Pathfinder identity
-```
-
-## Phase 0.2 Exit Decision
-
-Phase 0.2 is satisfied when Pathfinder accepts the following first-class object model:
+Initial Assessment subjects may include, where the Assessment type permits:
 
 ```text
 Source
-SourceRecord
-Assertion
+SourceCollection
 Observable
 Indicator
+Assertion
 Sighting
-Assessment
 Relationship
 ThreatActor
 Campaign
@@ -291,16 +300,208 @@ Infrastructure
 Report
 ```
 
-with these governing rules:
+An Assessment may be superseded, disputed, or otherwise reinterpreted through later records. The original Assessment remains historical.
 
-1. Every Pathfinder object has Pathfinder-controlled identity.
-2. External identifiers are preserved but never substitute for Pathfinder identity.
-3. Observable remains semantically neutral.
-4. SourceRecord preserves what a source supplied and remains separate from normalized intelligence.
-5. Assertion preserves what a source claimed and remains separate from Pathfinder Assessment.
-6. Sighting records observation and does not imply compromise.
-7. Assessment records judgment and preserves its authority and provenance.
-8. Relationship is first-class and preserves provenance, direction, time, and derivation.
-9. ThreatActor, Campaign, Malware, Tool, Vulnerability, Technique, and Infrastructure represent intelligence concepts rather than overloaded observable records.
-10. Historical source and assessment information survives later reinterpretation.
-11. No object type silently implies another object type.
+## Relationship
+
+A `Relationship` records a connection Pathfinder can describe between two permitted endpoints under a versioned relationship type.
+
+Relationships preserve identity, relationship type, endpoints, directionality, time context, origin, support, conflict, and derivation lineage.
+
+A Relationship does not own one universal mutable confidence value. Confidence belongs to the Assertion or Assessment expressing that judgment.
+
+```text
+Relationship != identity
+Relationship != causation
+Relationship != ownership
+Relationship != attribution
+```
+
+## ThreatActor
+
+A `ThreatActor` represents an actor identity or actor construct reported or assessed within threat intelligence.
+
+Vendor names, aliases, clusters, and ATT&CK Groups are not silently merged merely because they appear similar.
+
+Actor attribution remains attributable interpretation.
+
+## Campaign
+
+A `Campaign` represents a bounded or identified collection of related threat activity.
+
+A Campaign may be source-reported, analyst-defined, or Pathfinder-derived under explicit provenance.
+
+Campaign association does not itself prove actor attribution.
+
+## Malware
+
+A `Malware` object represents a malware family, strain, variant, or identified malicious-software construct.
+
+Malware is not an individual file hash.
+
+```text
+hash match != malware execution
+```
+
+## Tool
+
+A `Tool` represents software used in threat activity that is not inherently represented as malware.
+
+Legitimate administration tools, dual-use utilities, offensive-security tools, and remote-management software may all be Tools.
+
+```text
+Tool observed != malicious use established
+```
+
+## Vulnerability
+
+A `Vulnerability` represents a known or tracked vulnerability identity such as a CVE or vendor advisory identity.
+
+Pathfinder may own intelligence concerning a Vulnerability but does not own whether a specific Atlas asset is actually vulnerable.
+
+## Technique
+
+A `Technique` represents an external or Pathfinder-recognized behavioral classification, including MITRE ATT&CK Technique/Sub-Technique mappings where useful.
+
+ATT&CK is optional classification/reference metadata. Lack of an ATT&CK mapping does not reduce threat significance, confidence, operational relevance, or escalation priority.
+
+```text
+Technique classification != behavior observed locally
+```
+
+## Infrastructure
+
+An `Infrastructure` object represents a logical infrastructure construct used to group infrastructure-related intelligence.
+
+Infrastructure is not synonymous with one IP address or domain. Shared infrastructure does not establish common ownership or actor identity.
+
+## Report
+
+A `Report` represents a coherent intelligence publication or analytical product.
+
+A Report may reference many Pathfinder objects. It is not proof that every claim within it is true.
+
+## LifecycleEvent
+
+A `LifecycleEvent` records a lifecycle transition such as aging, expiration, revocation, supersession, dispute, or conflict-related state where the applicable contract permits it.
+
+Lifecycle history is append-only.
+
+```text
+lifecycle transition != original record rewritten
+```
+
+## IntelligenceConflict
+
+An `IntelligenceConflict` is a first-class record representing materially incompatible Assertions or Assessments within a defined subject, scope, and applicable time.
+
+Conflict is not a data-quality failure and is not resolved by majority vote, highest confidence, or newest-record-wins.
+
+Opposing records remain historical after resolution.
+
+## ChangeRecord
+
+A `ChangeRecord` records an intentional material change to governed interpretation, workflow state, or governed configuration.
+
+It is part of Pathfinder's Git-style change history.
+
+A ChangeRecord does not replace the intelligence records it describes.
+
+## ChangeSet
+
+A `ChangeSet` groups one logical set of ChangeRecords.
+
+> **A committed ChangeSet is atomic.**
+
+Either all semantic changes in that ChangeSet commit or none do. A larger bulk job may produce multiple ChangeSets and may finish `PARTIAL`, but no committed ChangeSet is partially committed.
+
+## AuditEvent
+
+An `AuditEvent` records a security-, authorization-, access-, administration-, or integrity-relevant operation and its result.
+
+It answers who or what acted, under what authority, against what target, and what happened operationally.
+
+```text
+AuditEvent != ChangeRecord
+```
+
+## ProcessingRecord
+
+A `ProcessingRecord` records machine processing lineage such as parsing, normalization, mapping, correlation, conflict detection, lifecycle evaluation, or reprocessing.
+
+It identifies process/method/version, input, output, time, and result.
+
+```text
+ProcessingRecord != AuditEvent
+ProcessingRecord != ChangeRecord
+```
+
+## Current Interpretation
+
+Current views are derived from historical records. They are rebuildable; historical records are not.
+
+No Assessment automatically becomes the singular current interpretation merely because it is newest, highest confidence, human-authored, machine-authored, or supported by the largest raw record count.
+
+A singular current interpretation requires an explicit semantic mechanism such as valid supersession lineage, resolved IntelligenceConflict with a resolution Assessment, or a versioned approved current-view selection policy.
+
+Where materially incompatible applicable Assessments remain unresolved:
+
+```text
+current_interpretation_state = CONFLICTED
+```
+
+Pathfinder does not silently use database last-write-wins.
+
+## Object Ownership Rules
+
+Pathfinder owns its records and interpretation of threat intelligence, including its identities, normalization, Assessments, Relationships, provenance, lifecycle, processing history, conflict history, and current-view derivation.
+
+It does not silently claim authority over external real-world facts.
+
+Stronghold observations remain Stronghold-origin observations. FI observations remain FI-origin observations. Atlas asset/environment facts remain Atlas authority. Guidon remains backup/recovery authority.
+
+## Core Truth Separations
+
+```text
+Source != SourceCollection
+RetrievalEvent != SourceArtifact
+SourceArtifact != SourceRecord
+SourceRecord != Assertion
+Assertion != Assessment
+Observable != Indicator
+Indicator != Sighting
+Sighting != Assessment
+Relationship != identity
+LifecycleEvent != ChangeRecord
+IntelligenceConflict != Assessment
+ChangeRecord != AuditEvent
+AuditEvent != ProcessingRecord
+current view != historical record
+Infrastructure != IP address
+Malware != file hash
+Tool != malicious activity
+Technique != observed behavior
+Vulnerability != vulnerable asset
+Report != proof
+external identifier != Pathfinder identity
+```
+
+## Phase 0.2 Exit Decision
+
+Phase 0.2 is satisfied when Pathfinder accepts the canonical object families above and these governing rules:
+
+1. Every first-class Pathfinder record has Pathfinder-controlled identity.
+2. External identifiers remain separate.
+3. SourceArtifact owns exact acquired source bytes and preservation digest.
+4. SourceRecord identifies a logical item within a SourceArtifact and retains a locator/provenance path.
+5. Assertion preserves what a source claimed.
+6. External-source judgments remain Assertions.
+7. Assessment authority is HUMAN_ANALYST or PATHFINDER_PROCESS.
+8. Sighting records observation and does not imply compromise.
+9. Relationship is first-class and does not own one universal confidence value.
+10. LifecycleEvent and IntelligenceConflict preserve intelligence-state history without rewriting original records.
+11. ChangeRecord/ChangeSet, AuditEvent, and ProcessingRecord remain separate history families.
+12. A committed ChangeSet is atomic.
+13. Current views are derived and do not use hidden newest/highest-confidence/last-write-wins semantics.
+14. ThreatActor, Campaign, Malware, Tool, Vulnerability, Technique, Infrastructure, and Report remain explicit concepts rather than overloaded Observables.
+15. **The original record is maintained no matter what.**
