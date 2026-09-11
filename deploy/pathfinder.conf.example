@@ -1,0 +1,36 @@
+# Pathfinder deployment values.
+#
+# This file records installation-specific values used by deployment tooling.
+# Copy it to a private/local deployment configuration and adjust for the target
+# host. Do not place credentials or private keys in this file.
+
+PATHFINDER_RELEASE="15.1-RELEASE"
+PATHFINDER_PATCH_LEVEL="p3"
+
+ZPOOL="zroot"
+EXT_IF="em0"
+DNS_SERVER="192.168.1.53"
+
+BRIDGE_IF="bridge77"
+PRIVATE_NET="10.77.0.0/24"
+PRIVATE_GATEWAY="10.77.0.1"
+
+APP_JAIL="pfapp"
+APP_HOSTNAME="pathfinder-app"
+APP_IP="10.77.0.10"
+APP_EPAIR="epair10"
+
+DB_JAIL="pfdb"
+DB_HOSTNAME="pathfinder-db"
+DB_IP="10.77.0.20"
+DB_EPAIR="epair20"
+
+JAIL_ROOT="/usr/local/jails"
+TEMPLATE_DATASET="zroot/jails/templates/15.1-RELEASE"
+TEMPLATE_SNAPSHOT="base-p3"
+APP_DATASET="zroot/jails/containers/pathfinder-app"
+DB_DATASET="zroot/jails/containers/pathfinder-db"
+
+ARTIFACT_DATASET="zroot/pathfinder/artifacts"
+STATE_DATASET="zroot/pathfinder/state"
+PGDATA_DATASET="zroot/pathfinder/pgdata"
