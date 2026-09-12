@@ -1,0 +1,4 @@
+# Pathfinder database jail rc.conf reference.
+
+postgresql_enable="YES"
+postgresql_data="/var/db/postgres/data18"
