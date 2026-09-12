@@ -19,18 +19,32 @@ deploy/
     README.md
     pathfinder.conf.example
     files/
+        host-rc.conf.pathfinder
+        host-sysctl.conf.pathfinder
         jail.conf
         pathfinder-jails.conf
+        pathfinder.rc.d
+        pathfinder-runtime.conf.example
         pf.conf
+        pfapp-rc.conf.pathfinder
+        pfdb-rc.conf.pathfinder
+        pg_hba.conf.pathfinder
+        postgresql.conf.pathfinder
     verify/
         pathfinder-verify.sh
 ```
 
 `pathfinder.conf.example` contains installation-specific non-secret values for the validated reference build.
 
-`files/` contains known-good reference configuration for the FreeBSD jail/PF boundary.
+`files/` contains known-good reference configuration for the FreeBSD host, jail, PF, PostgreSQL, and Pathfinder service/runtime boundaries. Files with reference IP addresses or interface names must be rendered from deployment configuration by the general installer rather than copied blindly.
 
 `verify/pathfinder-verify.sh` validates the Phase 1.1 host, jail, PF, PostgreSQL, Pathfinder service, health/readiness, migration-secret isolation, migration preflight, and runtime-toolchain boundary. It exits non-zero if a required invariant fails.
+
+The validated Go runtime source is stored under:
+
+```text
+go/cmd/pathfinder/
+```
 
 ## Clean-Host Starting Contract
 
