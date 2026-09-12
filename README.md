@@ -423,24 +423,29 @@ Relationships remain first-class even when represented relationally.
 
 Graph infrastructure is deferred until measured Pathfinder workloads demonstrate a concrete need.
 
-## Phase 0 Status
-
-Phase 0 design and reconciliation are complete.
+## Current Development Status
 
 ```text
 PHASE 0
     COMPLETE
 
-EXIT GATE
+PHASE 0 EXIT GATE
     PASS
 
-NEXT
-    Phase 1.1 — Runtime and Repository Foundation
+PHASE 1.1 — Runtime and Repository Foundation
+    COMPLETE
+
+CURRENT
+    Phase 1.2 — Minimal Relational Schema for the First Vertical Slice
 ```
 
 The Phase 0 exit review is authoritative for reconciled semantics:
 
 [`docs/PHASE-0-RECONCILIATION-EXIT.md`](docs/PHASE-0-RECONCILIATION-EXIT.md)
+
+The completed Phase 1.1 runtime foundation is recorded in:
+
+[`docs/PHASE-1.1-PLATFORM-FOUNDATION.md`](docs/PHASE-1.1-PLATFORM-FOUNDATION.md)
 
 ## Phase 0 Contract Index
 
@@ -468,10 +473,8 @@ EXIT docs/PHASE-0-RECONCILIATION-EXIT.md
 
 ## Phase 1 Direction
 
-Phase 1 begins with infrastructure and runtime groundwork before broad feature implementation.
-
 ```text
-1.1 Runtime and Repository Foundation
+1.1 Runtime and Repository Foundation                    COMPLETE
 1.2 Minimal Relational Schema for the First Vertical Slice
 1.3 Source Preservation
 1.4 First External Collector
@@ -486,6 +489,20 @@ Phase 1 begins with infrastructure and runtime groundwork before broad feature i
 ```
 
 Phase 1.2 does not require implementing tables for every conceptual object immediately. Concrete object schemas are added as the first vertical slice requires them.
+
+## Fresh Installation Requirement
+
+Phase 1 cannot be declared complete until Pathfinder can be reconstructed from a clean supported FreeBSD amd64 ZFS host with only working networking/DNS, a root account, and one non-root wheel user.
+
+The stable installer interface is:
+
+```sh
+sh install.sh --config /path/to/pathfinder.conf
+```
+
+The clean-host contract and exit criteria are defined in [`docs/PHASE-1-FRESH-INSTALL-ACCEPTANCE.md`](docs/PHASE-1-FRESH-INSTALL-ACCEPTANCE.md).
+
+`install.sh` currently provides the stable interface and clean-host preflight/verification routing but intentionally refuses partial installation until the complete Phase 1 construction path is repository-owned and clean-host validated.
 
 ## Early Deferrals
 
