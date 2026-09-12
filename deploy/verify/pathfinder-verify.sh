@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Pathfinder Phase 1.1 platform verification.
+# Pathfinder Phase 1.1 runtime/platform verification.
 # See ../../LICENSE and ../../docs/PHASE-1.1-PLATFORM-FOUNDATION.md.
 
 set -u
@@ -46,11 +46,11 @@ fi
 . "$CONFIG"
 
 if [ "$(id -u)" -ne 0 ]; then
-    printf '[FAIL] run as root; PF and jail verification require host authority\n' >&2
+    printf '[FAIL] run as root; PF, jail, and service verification require host authority\n' >&2
     exit 2
 fi
 
-printf 'Pathfinder Phase 1.1 platform verification\n'
+printf 'Pathfinder Phase 1.1 verification\n'
 printf 'Config: %s\n\n' "$CONFIG"
 
 version=$(freebsd-version -u 2>/dev/null || true)
@@ -145,24 +145,131 @@ else
     fail "$DB_JAIL address ${DB_IP}"
 fi
 
-if jexec "$APP_JAIL" fetch -qo /dev/null https://download.freebsd.org/ >/dev/null 2>&1; then
-    pass "$APP_JAIL HTTPS egress"
+if jexec "$APP_JAIL" fetch -T 5 -qo /dev/null https://download.freebsd.org/ >/dev/null 2>&1; then
+    pass "$APP_JAIL public HTTPS egress"
 else
-    fail "$APP_JAIL HTTPS egress"
+    fail "$APP_JAIL public HTTPS egress"
 fi
 
-if jexec "$DB_JAIL" fetch -qo /dev/null https://download.freebsd.org/ >/dev/null 2>&1; then
-    pass "$DB_JAIL HTTPS egress (temporary provisioning allowance)"
+if jexec "$DB_JAIL" fetch -T 5 -qo /dev/null https://download.freebsd.org/ >/dev/null 2>&1; then
+    fail "$DB_JAIL public HTTPS denied"
 else
-    fail "$DB_JAIL HTTPS egress (temporary provisioning allowance)"
+    pass "$DB_JAIL public HTTPS denied"
+fi
+
+if jexec "$APP_JAIL" /rescue/nc -z -w 2 "$DB_IP" 5432 >/dev/null 2>&1; then
+    pass "$APP_JAIL to $DB_JAIL PostgreSQL connectivity"
+else
+    fail "$APP_JAIL to $DB_JAIL PostgreSQL connectivity"
+fi
+
+check_eq "PostgreSQL boot enabled" \
+    "$(jexec "$DB_JAIL" sysrc -n postgresql_enable 2>/dev/null || echo NOT_KNOWN)" \
+    "YES"
+
+if jexec "$DB_JAIL" service postgresql status >/dev/null 2>&1; then
+    pass "PostgreSQL running"
+else
+    fail "PostgreSQL running"
+fi
+
+if jexec "$DB_JAIL" sockstat -4 -l 2>/dev/null | grep -q "${DB_IP}:5432"; then
+    pass "PostgreSQL listener restricted to ${DB_IP}:5432"
+else
+    fail "PostgreSQL listener restricted to ${DB_IP}:5432"
+fi
+
+pg_version=$(jexec "$DB_JAIL" su - postgres -c \
+    "/usr/local/bin/psql -d postgres -Atc 'SHOW server_version;'" 2>/dev/null || true)
+case "$pg_version" in
+    18.*)
+        pass "PostgreSQL 18 runtime"
+        ;;
+    *)
+        fail "PostgreSQL 18 runtime (actual: ${pg_version:-NOT_KNOWN})"
+        ;;
+esac
+
+check_eq "PostgreSQL data checksums enabled" \
+    "$(jexec "$DB_JAIL" su - postgres -c "/usr/local/bin/psql -d postgres -Atc 'SHOW data_checksums;'" 2>/dev/null || echo NOT_KNOWN)" \
+    "on"
+
+check_eq "Pathfinder boot enabled" \
+    "$(jexec "$APP_JAIL" sysrc -n pathfinder_enable 2>/dev/null || echo NOT_KNOWN)" \
+    "YES"
+
+if jexec "$APP_JAIL" service pathfinder status >/dev/null 2>&1; then
+    pass "Pathfinder service running"
+else
+    fail "Pathfinder service running"
+fi
+
+child_pid=$(jexec "$APP_JAIL" cat /var/run/pathfinder/pathfinder.pid 2>/dev/null || true)
+if [ -n "$child_pid" ] && \
+    [ "$(jexec "$APP_JAIL" ps -p "$child_pid" -o user= 2>/dev/null | awk '{print $1}')" = "pathfinder" ]; then
+    pass "Pathfinder child runs as pathfinder"
+else
+    fail "Pathfinder child runs as pathfinder"
+fi
+
+if jexec "$APP_JAIL" sockstat -4 -l 2>/dev/null | grep -q '127.0.0.1:8080'; then
+    pass "Pathfinder health listener loopback-only"
+else
+    fail "Pathfinder health listener loopback-only"
+fi
+
+if [ "$(jexec "$APP_JAIL" fetch -T 2 -qo - http://127.0.0.1:8080/livez 2>/dev/null || true)" = "live" ]; then
+    pass "Pathfinder /livez"
+else
+    fail "Pathfinder /livez"
+fi
+
+if [ "$(jexec "$APP_JAIL" fetch -T 2 -qo - http://127.0.0.1:8080/readyz 2>/dev/null || true)" = "ready" ]; then
+    pass "Pathfinder /readyz"
+else
+    fail "Pathfinder /readyz"
+fi
+
+if jexec -U pathfinder "$APP_JAIL" \
+    test -r /usr/local/etc/pathfinder/secrets/postgresql-password; then
+    pass "Pathfinder service can read runtime DB credential"
+else
+    fail "Pathfinder service can read runtime DB credential"
+fi
+
+if jexec -U pathfinder "$APP_JAIL" \
+    test -r /usr/local/etc/pathfinder/secrets/postgresql-migration-password; then
+    fail "Pathfinder service cannot read migration credential"
+else
+    pass "Pathfinder service cannot read migration credential"
+fi
+
+if jexec "$APP_JAIL" /usr/local/sbin/pathfinder migrate \
+    -config /usr/local/etc/pathfinder/pathfinder.conf >/dev/null 2>&1; then
+    pass "Pathfinder migration authority preflight"
+else
+    fail "Pathfinder migration authority preflight"
+fi
+
+if jexec -U pathfinder "$APP_JAIL" /usr/local/sbin/pathfinder migrate \
+    -config /usr/local/etc/pathfinder/pathfinder.conf >/dev/null 2>&1; then
+    fail "Pathfinder service denied migration command"
+else
+    pass "Pathfinder service denied migration command"
+fi
+
+if jexec "$APP_JAIL" sh -c 'command -v go >/dev/null 2>&1'; then
+    fail "Go toolchain absent from runtime jail"
+else
+    pass "Go toolchain absent from runtime jail"
 fi
 
 printf '\nPASS=%d FAIL=%d\n' "$PASS_COUNT" "$FAIL_COUNT"
 
 if [ "$FAIL_COUNT" -ne 0 ]; then
-    printf 'PATHFINDER PLATFORM: FAIL\n'
+    printf 'PATHFINDER PHASE 1.1: FAIL\n'
     exit 1
 fi
 
-printf 'PATHFINDER PLATFORM: PASS\n'
+printf 'PATHFINDER PHASE 1.1: PASS\n'
 exit 0
