@@ -1,29 +1,28 @@
-# Phase 1.1 — FreeBSD Platform Foundation
+# Phase 1.1 — Runtime and Repository Foundation
 
-Status: **VALIDATED / FROZEN**
+Status: **VALIDATED / COMPLETE**
 
-This document records the tested FreeBSD platform foundation for Pathfinder Phase 1.1.
+This document records the completed Pathfinder Phase 1.1 FreeBSD runtime, repository, database, service, migration-authority, and reboot-persistence foundation.
 
-It does **not** declare all of Phase 1.1 complete. The existing Phase 1.1 exit gate also requires the application runtime identity, configuration and secret boundaries, PostgreSQL dependency/version direction, startup/readiness behavior, migration entry point, validation/test entry point, and build/start behavior to be reviewable without guessing.
+Phase 1.1 is closed. Phase 1.2 may build the first minimal relational schema on this boundary.
 
-The platform portion documented here is complete and is the baseline for that remaining work.
-
-## Validated Host Baseline
+## Validated Reference Baseline
 
 ```text
 Operating system: FreeBSD 15.1-RELEASE-p3
 Architecture:      amd64
 Root pool:         zroot
-Host interface:    em0
-Host IPv4:         installation-specific
+Host interface:    installation-specific (reference: em0)
 Private bridge:    bridge77
 Private network:   10.77.0.0/24
 Bridge gateway:    10.77.0.1
 Application jail:  pfapp / 10.77.0.10
 Database jail:     pfdb  / 10.77.0.20
+PostgreSQL:        18.6
+Pathfinder:        0.0.0-dev reference runtime
 ```
 
-The reference build used a classic FreeBSD distribution-set host rather than pkgbase.
+The reference build uses the classic FreeBSD distribution-set model rather than pkgbase.
 
 ## ZFS Layout
 
@@ -38,15 +37,41 @@ zroot/pathfinder/state
 zroot/pathfinder/pgdata
 ```
 
-The Pathfinder durable datasets currently retain `mountpoint=none` until their consuming runtime paths are finalized.
+Validated runtime mountpoints are:
 
-The jail template is:
+```text
+zroot/pathfinder/artifacts
+    /usr/local/jails/containers/pathfinder-app/var/db/pathfinder/artifacts
+
+zroot/pathfinder/state
+    /usr/local/jails/containers/pathfinder-app/var/db/pathfinder/state
+
+zroot/pathfinder/pgdata
+    /usr/local/jails/containers/pathfinder-db/var/db/postgres/data18
+```
+
+The PostgreSQL dataset uses the validated properties:
+
+```text
+compression=lz4
+recordsize=32K
+atime=off
+sync=standard
+primarycache=all
+logbias=latency
+```
+
+State and artifact datasets use the normal Pathfinder ZFS hierarchy and remain separately manageable from the jail root.
+
+## Jail Template and Clones
+
+The template is:
 
 ```text
 zroot/jails/templates/15.1-RELEASE
 ```
 
-The template was built from the official FreeBSD 15.1 `base.txz`, updated to `15.1-RELEASE-p3`, snapshotted as:
+It was built from the official FreeBSD 15.1 `base.txz`, updated to `15.1-RELEASE-p3`, frozen at:
 
 ```text
 zroot/jails/templates/15.1-RELEASE@base-p3
@@ -54,28 +79,14 @@ zroot/jails/templates/15.1-RELEASE@base-p3
 
 and made read-only.
 
-The application and database jails are copy-on-write ZFS clones of that snapshot:
+The application and database jails are copy-on-write clones:
 
 ```text
 zroot/jails/containers/pathfinder-app
 zroot/jails/containers/pathfinder-db
 ```
 
-Pathfinder does not delegate ZFS administration to either jail.
-
-## Jail Boundary
-
-Pathfinder uses native FreeBSD jail tooling with VNET.
-
-```text
-host
-  |
-bridge77 10.77.0.1/24
-  |-- epair10a <-> epair10b -> pfapp 10.77.0.10
-  `-- epair20a <-> epair20b -> pfdb  10.77.0.20
-```
-
-The private bridge is not attached directly to the host's external/LAN interface.
+Neither jail receives ZFS administration or host PF authority.
 
 The database jail receives private SysV IPC namespaces:
 
@@ -87,13 +98,9 @@ sysvshm = new;
 
 The application jail does not receive those capabilities.
 
-Neither jail is granted ZFS mount authority, host PF authority, or SSH administration as part of this baseline.
-
-Host administration remains host-side, including `jexec` access.
-
 ## Boot Ordering
 
-The validated boot configuration is:
+The validated jail startup contract is:
 
 ```text
 jail_enable="YES"
@@ -102,22 +109,20 @@ jail_reverse_stop="YES"
 jail_parallel_start="NO"
 ```
 
-Therefore normal ordering is:
+Therefore:
 
 ```text
 boot:      pfdb -> pfapp
 shutdown:  pfapp -> pfdb
 ```
 
-This ordering intentionally anticipates the application depending on PostgreSQL.
+This makes the database dependency explicit rather than relying on race timing.
 
 ## Routing and PF
 
 IPv4 forwarding is enabled on the host.
 
-PF provides NAT for the private Pathfinder network through the host external interface.
-
-Bridge filtering is deliberately configured as:
+Bridge packet filtering is:
 
 ```text
 net.link.bridge.pfil_member=1
@@ -125,134 +130,346 @@ net.link.bridge.pfil_bridge=0
 net.link.bridge.pfil_local_phys=1
 ```
 
-Meaning:
+PF owns NAT and the jail-originated network boundary.
 
-```text
-pfil_member=1
-    inspect traffic switched between bridge members
-
-pfil_local_phys=1
-    inspect traffic entering the host IP stack from a bridge member
-
-pfil_bridge=0
-    avoid an unnecessary second bridge-level PF pass
-```
-
-## Validated Network Contract
-
-The Phase 1.1 reference policy currently establishes:
+The final Phase 1.1 steady-state policy is:
 
 ```text
 PFAPP 10.77.0.10
-    -> configured DNS server TCP/UDP 53     ALLOW
-    -> TCP 443                              ALLOW
-    -> PFDB 10.77.0.20 TCP 5432             ALLOW
-    -> other traffic                         DENY
+    -> configured DNS TCP/UDP 53           ALLOW
+    -> PFDB 10.77.0.20 TCP 5432           ALLOW
+    -> private ranges through broad HTTPS  DENY
+    -> public TCP 443                       ALLOW
+    -> all other traffic                    DENY
 
 PFDB 10.77.0.20
-    -> configured DNS server TCP/UDP 53     ALLOW
-    -> TCP 443                              ALLOW TEMPORARILY
+    -> configured DNS TCP/UDP 53           ALLOW
+    -> public HTTPS                         DENY
     -> PFAPP unsolicited                    DENY
-    -> other traffic                        DENY
+    -> all other traffic                    DENY
 
 HOST
-    -> existing host networking/management preserved
+    -> existing host operation/management preserved
 ```
 
-The DB HTTPS allowance exists for initial package/bootstrap work and is expected to be revisited after PostgreSQL provisioning.
+The temporary database-jail HTTPS provisioning allowance used earlier in construction is **not** part of the final runtime boundary.
 
-## Security Tests Performed
+Validated negative tests included application-to-database TCP/443 denial and database-to-application TCP/443 denial using real temporary listeners so execution failures were not mistaken for network denials.
 
-The reference build explicitly proved:
+## PostgreSQL Runtime
+
+The database jail runs PostgreSQL 18.6.
+
+Validated configuration includes:
 
 ```text
-pfapp -> pfdb ICMP                    DENY
-pfdb  -> pfapp ICMP                   DENY
-pfapp -> configured LAN DNS ICMP      DENY
-pfapp -> pfdb TCP 5432                ALLOW
-pfapp -> pfdb TCP 5433                DENY
-pfdb  -> pfapp TCP 8443               DENY
-pfapp -> external HTTPS               ALLOW
-pfdb  -> external HTTPS               ALLOW TEMPORARILY
+PGDATA=/var/db/postgres/data18
+listen_addresses=10.77.0.20
+port=5432
+password_encryption=scram-sha-256
+data_checksums=on
+postgresql_enable=YES
 ```
 
-The TCP/5432 test did not rely only on PF rule inspection. A temporary listener in `pfdb` received the expected test payload on 5432, while listeners on denied paths received no data.
+Host authentication permits the application and migration identities only from the application jail address and rejects the remaining host-address space after the explicit entries.
 
-PF counters independently recorded the permitted PostgreSQL flow and denied test flows.
-
-## Reboot Verification
-
-A full host reboot was used as the final platform proof.
-
-After reboot, FreeBSD automatically reconstructed and verified:
+The runtime listener is restricted to:
 
 ```text
-15.1-RELEASE-p3
-pfdb and pfapp jail startup
-bridge77 10.77.0.1/24
-epair10a and epair20a membership
+10.77.0.20:5432
+```
+
+## Database Authority Separation
+
+Phase 1.1 freezes three distinct database authorities:
+
+```text
+pathfinder_owner
+    NOLOGIN
+    owns the pathfinder database/schema
+    no superuser
+    no createdb
+    no createrole
+    no replication
+    no bypassrls
+
+pathfinder_app
+    LOGIN
+    normal Pathfinder runtime identity
+    CONNECT / runtime access only
+    no DDL authority
+
+pathfinder_migrator
+    LOGIN
+    separate migration identity
+    NOINHERIT
+    member of pathfinder_owner with explicit SET authority
+    cannot perform owner DDL until SET ROLE pathfinder_owner
+```
+
+The following were explicitly tested:
+
+```text
+pathfinder_app DDL                         DENY
+pathfinder_migrator DDL before SET ROLE   DENY
+pathfinder_migrator SET ROLE owner        ALLOW
+owner-role DDL inside rollback probe      ALLOW
+probe rollback leaves no table            PASS
+```
+
+Normal `serve` startup does not silently migrate schema.
+
+## Application Runtime Identity and Filesystem
+
+The application jail contains the dedicated service identity:
+
+```text
+pathfinder:pathfinder
+uid=1001
+gid=1001
+```
+
+Validated runtime paths are:
+
+```text
+/usr/local/sbin/pathfinder
+/usr/local/etc/pathfinder/pathfinder.conf
+/usr/local/etc/pathfinder/secrets/
+/var/db/pathfinder/state
+/var/db/pathfinder/artifacts
+/var/log/pathfinder
+```
+
+Ownership and access boundaries are:
+
+```text
+/usr/local/etc/pathfinder
+    root:pathfinder 0750
+
+/usr/local/etc/pathfinder/secrets
+    root:pathfinder 0750
+
+pathfinder.conf
+    root:pathfinder 0640
+
+runtime PostgreSQL password
+    root:pathfinder 0640
+    readable by pathfinder service
+
+migration PostgreSQL password
+    root:wheel 0600
+    NOT readable by pathfinder service
+
+state/artifact/log paths
+    pathfinder:pathfinder 0750
+    writable by pathfinder service
+```
+
+Secrets are referenced from configuration; they are not stored in the non-secret configuration file.
+
+## Pathfinder Runtime Contract
+
+The installed Phase 1.1 binary exposes:
+
+```text
+pathfinder version
+pathfinder validate -config <file>
+pathfinder serve -config <file>
+pathfinder migrate -config <file>
+```
+
+The configuration parser is strict:
+
+```text
+unknown key      -> fail
+missing key      -> fail
+empty value      -> fail
+duplicate key    -> fail
+invalid port     -> fail
+non-loopback readiness address -> fail
+```
+
+`validate` is usable under the normal `pathfinder` service identity.
+
+`migrate` requires root invocation and uses the separate migration credential. The service identity cannot invoke migration authority.
+
+Phase 1.1 migration behavior is an authority/preflight contract with zero schema migrations pending; real versioned schema migration begins in Phase 1.2.
+
+## Health and Readiness
+
+The runtime exposes loopback-only health endpoints:
+
+```text
+127.0.0.1:8080/livez
+127.0.0.1:8080/readyz
+```
+
+Validated behavior:
+
+```text
+/livez   -> live
+/readyz  -> ready when the PostgreSQL endpoint is reachable
+```
+
+The readiness listener is not exposed on the jail network address.
+
+## rc.d Service Contract
+
+Pathfinder is supervised by FreeBSD `daemon(8)` through:
+
+```text
+/usr/local/etc/rc.d/pathfinder
+```
+
+The service runs the child as the non-root `pathfinder` identity.
+
+Validated runtime files are:
+
+```text
+/var/run/pathfinder/pathfinder-supervisor.pid
+/var/run/pathfinder/pathfinder.pid
+/var/log/pathfinder/pathfinder.log
+```
+
+The service contract validates configuration, credential readability, write boundaries, and executable presence before startup.
+
+Validated lifecycle behavior includes:
+
+```text
+start                   PASS
+non-root child          PASS
+/livez                  PASS
+/readyz                 PASS
+SIGTERM delivery        PASS
+graceful shutdown       PASS
+child exit              PASS
+listener cleanup        PASS
+PID cleanup             PASS
+```
+
+## Build Boundary
+
+The reference runtime was built with Go 1.25.14 during Phase 1.1 construction.
+
+The validated installed binary SHA-256 was:
+
+```text
+dd00b06d935dc8b8c0a53399473f1776f7cbd93039ac91849ddafd7942e85be8
+```
+
+After installation and lifecycle validation, the temporary Go toolchain was removed from the application jail.
+
+The installed static Pathfinder binary continued to pass runtime validation and migration preflight afterward.
+
+Therefore the final runtime appliance does not depend on a Go compiler being installed.
+
+## Full Reboot Persistence Proof
+
+A full host reboot was used as the Phase 1.1 closing test.
+
+Before reboot:
+
+```text
+pathfinder_enable=YES
+postgresql_enable=YES
+Pathfinder live=PASS
+Pathfinder ready=PASS
+```
+
+The reboot delivered SIGTERM to the running Pathfinder service and the application logged a graceful shutdown before host termination.
+
+After reboot, the system proved:
+
+```text
+FreeBSD 15.1-RELEASE-p3
+pfdb automatically restored
+pfapp automatically restored
+PostgreSQL automatically started
+PostgreSQL listener restored on 10.77.0.20:5432
+Pathfinder automatically started
+Pathfinder child owned by pathfinder
+/livez = live
+/readyz = ready
+127.0.0.1:8080 listener restored
+migration secret still denied to pathfinder service
+Go toolchain still absent
+installed Pathfinder SHA-256 unchanged
 PF enabled
-NAT restored
-Pathfinder filtering rules restored
+IPv4 forwarding=1
 pfil_member=1
 pfil_bridge=0
 pfil_local_phys=1
-IPv4 forwarding=1
-pfapp HTTPS success
-pfdb HTTPS success
 ```
 
-The platform foundation is therefore not dependent on an interactive setup session remaining in memory.
+This is the final Phase 1.1 completion proof.
 
-## Frozen Rollback Points
+## Rollback / Reference Checkpoints
 
-The jail roots were snapshotted after the successful reboot proof:
-
-```text
-zroot/jails/containers/pathfinder-app@phase-1.1-foundation
-zroot/jails/containers/pathfinder-db@phase-1.1-foundation
-```
-
-The FreeBSD host also has the boot environment:
+Relevant reference checkpoints include:
 
 ```text
 pathfinder-phase-1.1-foundation
+pathfinder-phase-1.1-pre-final-reboot
+pathfinder-phase-1.1-runtime-ready
 ```
 
-These are operator rollback checkpoints, not application-level migration mechanisms.
+Durable datasets also have Phase 1.1 runtime-ready snapshots for state, artifacts, and PostgreSQL data, plus a database-jail runtime-ready snapshot.
 
-## Reproducibility Requirement
+The application jail is intentionally not snapshotted at the final runtime-ready point because it contains live runtime and migration credentials.
 
-The validated platform must be reproducible from a clean supported FreeBSD host without replaying an exploratory terminal transcript.
+Rollback checkpoints are operational safeguards, not application-level migration mechanisms.
 
-The deployment assets under `deploy/` capture the known-good configuration direction and verification contract.
+## Reproducibility and Phase 1 Installation Requirement
 
-The final bootstrap must be idempotent and fail closed. Re-running it must not silently duplicate datasets, overwrite incompatible existing configuration, or report success when a required validation step failed.
+The Phase 1.1 appliance was constructed and validated interactively, but Phase 1 itself may not close on that basis.
 
-Installation-specific values such as external interface, DNS server, private subnet, and addresses belong in deployment configuration rather than being scattered through implementation logic.
+Phase 1 requires a repository-owned fresh-install path defined by:
 
-A bootstrap is not considered release-ready merely because it exists in the repository. It must itself be exercised against a clean host and pass the same verification contract recorded here.
+[`PHASE-1-FRESH-INSTALL-ACCEPTANCE.md`](PHASE-1-FRESH-INSTALL-ACCEPTANCE.md)
 
-## Remaining Phase 1.1 Work
-
-The next work remains inside Phase 1.1 and includes:
+The required clean-host starting state is intentionally small:
 
 ```text
-PostgreSQL version/package direction
-zroot/pathfinder/pgdata mount contract
-PostgreSQL initialization and bind boundary
-application/database service identities
-Pathfinder runtime identity
-configuration contract
-secret-reference boundary
-state/artifact runtime paths
-startup/readiness behavior
-migration entry point
-validation/test entry point
-build/start behavior
+supported FreeBSD
+ZFS root
+working network/DNS
+root account
+one non-root wheel user
 ```
 
-Do not begin broad intelligence schema or feed implementation until these runtime/dependency boundaries are reviewable without guessing.
+The stable operator entry point is:
+
+```sh
+sh install.sh --config /path/to/pathfinder.conf
+```
+
+Until every required construction stage is automated and clean-host tested, `install.sh` must fail closed rather than perform a partial installation and report success.
+
+## Phase 1.1 Exit Result
+
+```text
+supported runtime environment          PASS
+jail/network/PF boundary               PASS
+PostgreSQL runtime                     PASS
+runtime database authority             PASS
+separate migration authority           PASS
+configuration/secret boundary          PASS
+state/artifact filesystem boundary     PASS
+strict validation entry point          PASS
+migration entry point                  PASS
+rc.d service lifecycle                 PASS
+health/readiness                       PASS
+graceful shutdown                      PASS
+boot persistence                       PASS
+runtime toolchain cleanup              PASS
+full host reboot proof                 PASS
+```
+
+Phase 1.1 result:
+
+```text
+PASS — COMPLETE
+```
 
 ## Governing Principle
 
