@@ -16,15 +16,26 @@ Phase 0 Reconciliation / Exit Review
 Phase 0 Exit Gate
     PASS
 
+Phase 1.1 — Runtime and Repository Foundation
+    COMPLETE
+
 Current work
-    Phase 1.1 — Runtime and Repository Foundation
+    Phase 1.2 — Minimal Relational Schema for the First Vertical Slice
 ```
 
-The governing reconciliation document is:
+The governing Phase 0 reconciliation document is:
 
 [`docs/PHASE-0-RECONCILIATION-EXIT.md`](docs/PHASE-0-RECONCILIATION-EXIT.md)
 
-Where an earlier Phase 0 description conflicts with a refinement frozen by that document, the reconciliation document governs.
+The completed Phase 1.1 runtime foundation is recorded in:
+
+[`docs/PHASE-1.1-PLATFORM-FOUNDATION.md`](docs/PHASE-1.1-PLATFORM-FOUNDATION.md)
+
+Phase 1 fresh-install acceptance is governed by:
+
+[`docs/PHASE-1-FRESH-INSTALL-ACCEPTANCE.md`](docs/PHASE-1-FRESH-INSTALL-ACCEPTANCE.md)
+
+Where an earlier Phase 0 description conflicts with a refinement frozen by the reconciliation document, the reconciliation document governs.
 
 ---
 
@@ -318,33 +329,43 @@ Phase 1 implements the smallest complete Pathfinder system capable of proving th
 
 The objective is not feature count. The objective is one trustworthy vertical slice.
 
-## 1.1 Runtime and Repository Foundation
+## 1.1 Runtime and Repository Foundation — COMPLETE
 
-Before application feature code, establish the environment in which Pathfinder will live.
+Phase 1.1 established and validated the environment in which Pathfinder lives.
 
-Freeze and implement the groundwork for:
+Completed groundwork includes:
 
 ```text
-supported operating environment
+supported FreeBSD environment
+native VNET jail boundary
+host-owned ZFS and PF authority
+PostgreSQL 18 runtime
+separate runtime and migration DB authority
 service/runtime identity
-repository layout
-Go module/toolchain direction
-configuration contract
+configuration and secret boundaries
 filesystem/state paths
-PostgreSQL dependency/version direction
 startup/readiness behavior
 logging boundary
-secret-handling boundary
 migration entry point
-validation/test entry point
-build/release expectations
+validation entry point
+build/install boundary
+rc.d service lifecycle
+graceful shutdown
+full reboot persistence
+runtime build-tool cleanup
 ```
 
-Do not begin with broad domain schema or feed code before the runtime/dependency/configuration foundation is reviewable.
+The closing record is [`docs/PHASE-1.1-PLATFORM-FOUNDATION.md`](docs/PHASE-1.1-PLATFORM-FOUNDATION.md).
 
 ### 1.1 Exit Gate
 
-Phase 1.1 is complete when a developer/operator can determine:
+Phase 1.1 result:
+
+```text
+PASS — COMPLETE
+```
+
+A developer/operator can determine without guessing:
 
 ```text
 where Pathfinder runs
@@ -354,12 +375,10 @@ which identity it runs as
 where durable/local state belongs
 how secrets are referenced
 how startup/readiness is determined
-how migrations will be invoked
-how validation/tests are invoked
-how the service is built and started
+how migrations are invoked
+how validation is invoked
+how the service is built, installed, started, stopped, and restored after reboot
 ```
-
-without guessing.
 
 ## 1.2 Minimal Relational Schema for the First Vertical Slice
 
@@ -506,6 +525,20 @@ stale analyst base
 
 Critical paths should include restart/interruption testing and selected fault injection.
 
+## Phase 1 Fresh-Install Requirement
+
+Phase 1 completion also requires the system to be reproducible from the clean-host contract in [`docs/PHASE-1-FRESH-INSTALL-ACCEPTANCE.md`](docs/PHASE-1-FRESH-INSTALL-ACCEPTANCE.md).
+
+The supported operator entry point is:
+
+```sh
+sh install.sh --config /path/to/pathfinder.conf
+```
+
+The acceptance starting point is a supported FreeBSD amd64 ZFS host with working networking/DNS, a root account, and one non-root wheel user. Git, Go, PostgreSQL, Pathfinder identities, jail templates, jails, datasets, PF policy, secrets, and Pathfinder services must not be pre-required.
+
+The installer must own required dependency installation, secret generation, construction, validation, and reboot-persistence proof. Until that path is complete and clean-host tested, `install.sh` must fail closed rather than claim a partial installation succeeded.
+
 ## Phase 1 Exit Gate
 
 Phase 1 must demonstrate one complete narrow path:
@@ -549,6 +582,15 @@ failed
 partial
 unsupported
 not established
+```
+
+Phase 1 additionally cannot close until:
+
+```text
+install.sh reconstructs the Phase 1 system from the defined clean-host state
+repository-owned verification passes on that fresh system
+full reboot persistence passes
+no undocumented manual construction step is required
 ```
 
 ---
