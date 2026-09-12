@@ -1,0 +1,6 @@
+# Pathfinder Phase 1.1 PostgreSQL settings.
+# Apply to the PostgreSQL 18 cluster configuration.
+
+listen_addresses = '10.77.0.20'
+port = 5432
+password_encryption = 'scram-sha-256'
