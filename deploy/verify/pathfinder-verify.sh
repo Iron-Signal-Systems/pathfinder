@@ -127,10 +127,22 @@ else
     fail "Pathfinder NAT active"
 fi
 
-if pfctl -s rules 2>/dev/null | grep -Fq "from ${APP_IP} to ${DB_IP} port = postgresql"; then
+PF_RULES=$(pfctl -s rules 2>/dev/null || true)
+
+if printf '%s\n' "$PF_RULES" | grep -Fq "from ${APP_IP} to ${DB_IP} port = postgresql"; then
     pass "app to database PostgreSQL rule present"
 else
     fail "app to database PostgreSQL rule present"
+fi
+
+DB_INTERFACE_RULES=$(printf '%s\n' "$PF_RULES" | grep -F "on ${DB_EPAIR}a " || true)
+
+if printf '%s\n' "$DB_INTERFACE_RULES" | grep -Fq 'port = https'; then
+    fail "$DB_JAIL public HTTPS rule absent"
+elif printf '%s\n' "$DB_INTERFACE_RULES" | grep -Fq "block drop in quick on ${DB_EPAIR}a all"; then
+    pass "$DB_JAIL public HTTPS rule absent and terminal block present"
+else
+    fail "$DB_JAIL terminal PF block present"
 fi
 
 if jexec "$APP_JAIL" ifconfig "${APP_EPAIR}b" 2>/dev/null | grep -q "inet ${APP_IP} "; then
@@ -149,12 +161,6 @@ if jexec "$APP_JAIL" fetch -T 5 -qo /dev/null https://download.freebsd.org/ >/de
     pass "$APP_JAIL public HTTPS egress"
 else
     fail "$APP_JAIL public HTTPS egress"
-fi
-
-if jexec "$DB_JAIL" fetch -T 5 -qo /dev/null https://download.freebsd.org/ >/dev/null 2>&1; then
-    fail "$DB_JAIL public HTTPS denied"
-else
-    pass "$DB_JAIL public HTTPS denied"
 fi
 
 if jexec "$APP_JAIL" /rescue/nc -z -w 2 "$DB_IP" 5432 >/dev/null 2>&1; then
@@ -193,6 +199,14 @@ esac
 check_eq "PostgreSQL data checksums enabled" \
     "$(jexec "$DB_JAIL" su - postgres -c "/usr/local/bin/psql -d postgres -Atc 'SHOW data_checksums;'" 2>/dev/null || echo NOT_KNOWN)" \
     "on"
+
+check_eq "runtime DB role has CONNECT" \
+    "$(jexec "$DB_JAIL" su - postgres -c "/usr/local/bin/psql -d postgres -Atc \"SELECT has_database_privilege('pathfinder_app','pathfinder','CONNECT');\"" 2>/dev/null || echo NOT_KNOWN)" \
+    "t"
+
+check_eq "runtime DB role lacks schema CREATE" \
+    "$(jexec "$DB_JAIL" su - postgres -c "/usr/local/bin/psql -d postgres -Atc \"SELECT has_schema_privilege('pathfinder_app','pathfinder','CREATE');\"" 2>/dev/null || echo NOT_KNOWN)" \
+    "f"
 
 check_eq "Pathfinder boot enabled" \
     "$(jexec "$APP_JAIL" sysrc -n pathfinder_enable 2>/dev/null || echo NOT_KNOWN)" \
@@ -251,11 +265,16 @@ else
     fail "Pathfinder migration authority preflight"
 fi
 
-if jexec -U pathfinder "$APP_JAIL" /usr/local/sbin/pathfinder migrate \
-    -config /usr/local/etc/pathfinder/pathfinder.conf >/dev/null 2>&1; then
-    fail "Pathfinder service denied migration command"
+MIGRATION_DENY_OUTPUT=$(jexec -U pathfinder "$APP_JAIL" \
+    /usr/local/sbin/pathfinder migrate \
+    -config /usr/local/etc/pathfinder/pathfinder.conf 2>&1)
+MIGRATION_DENY_RC=$?
+
+if [ "$MIGRATION_DENY_RC" -ne 0 ] && \
+    printf '%s\n' "$MIGRATION_DENY_OUTPUT" | grep -q 'migration command must run as root'; then
+    pass "Pathfinder service denied migration command by root boundary"
 else
-    pass "Pathfinder service denied migration command"
+    fail "Pathfinder service denied migration command by root boundary"
 fi
 
 if jexec "$APP_JAIL" sh -c 'command -v go >/dev/null 2>&1'; then
