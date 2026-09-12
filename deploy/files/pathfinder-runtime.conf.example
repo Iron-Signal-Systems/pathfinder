@@ -1,0 +1,16 @@
+# Pathfinder runtime configuration.
+#
+# Secrets MUST NOT be stored in this file.
+# Installation tooling renders database_host from deployment configuration.
+
+state_dir=/var/db/pathfinder/state
+artifacts_dir=/var/db/pathfinder/artifacts
+log_dir=/var/log/pathfinder
+
+database_host=10.77.0.20
+database_port=5432
+database_name=pathfinder
+database_user=pathfinder_app
+database_password_file=/usr/local/etc/pathfinder/secrets/postgresql-password
+
+readiness_listen=127.0.0.1:8080
