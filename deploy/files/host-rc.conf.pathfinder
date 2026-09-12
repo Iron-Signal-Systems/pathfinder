@@ -1,0 +1,15 @@
+# Pathfinder Phase 1.1 host rc.conf reference.
+# Installation tooling must render installation-specific values.
+
+cloned_interfaces="bridge77"
+ifconfig_bridge77="inet 10.77.0.1/24 up"
+
+gateway_enable="YES"
+
+pf_enable="YES"
+pf_rules="/etc/pf.conf"
+
+jail_enable="YES"
+jail_list="pfdb pfapp"
+jail_reverse_stop="YES"
+jail_parallel_start="NO"
