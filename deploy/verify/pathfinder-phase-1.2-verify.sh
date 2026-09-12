@@ -104,7 +104,7 @@ PRIV_RESULT=$(jexec "$DB_JAIL" su - postgres -c \
        has_table_privilege('pathfinder_app','pathfinder.schema_migration','SELECT');
      \"" 2>/dev/null || true)
 
-if [ "$PRIV_RESULT" = "t|t|t|f|f" ]; then
+if [ "$PRIV_RESULT" = "true|true|true|false|false" ]; then
     echo "PASS: runtime DML and migration-ledger privilege boundary."
 else
     echo "FAIL: runtime privilege boundary mismatch (${PRIV_RESULT:-NOT_KNOWN})."

@@ -19,17 +19,17 @@ func main() {
 	switch os.Args[1] {
 	case "migrate":
 		err = runMigrate(os.Args[2:])
-
+	case "preserve":
+		err = runPreserve(os.Args[2:])
 	case "serve":
 		err = runServe(os.Args[2:])
-
+	case "source-artifact":
+		err = runSourceArtifact(os.Args[2:])
 	case "validate":
 		err = runValidate(os.Args[2:])
-
 	case "version":
 		fmt.Printf("Pathfinder %s\n", version)
 		return
-
 	default:
 		usage()
 		os.Exit(2)
@@ -42,8 +42,5 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(
-		os.Stderr,
-		"usage: pathfinder <migrate|serve|validate|version>",
-	)
+	fmt.Fprintln(os.Stderr, "usage: pathfinder <migrate|preserve|serve|source-artifact|validate|version>")
 }

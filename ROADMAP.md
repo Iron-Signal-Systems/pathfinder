@@ -22,8 +22,11 @@ Phase 1.1 — Runtime and Repository Foundation
 Phase 1.2 — Source Foundation / Minimal Relational Schema
     COMPLETE
 
+Phase 1.3 — Source Preservation
+    COMPLETE
+
 Current work
-    Phase 1.3 — Source Preservation
+    Phase 1.4 — First External Collector
 ```
 
 The governing Phase 0 reconciliation document is:
@@ -416,7 +419,7 @@ Repository-owned validation covers UUIDv7 identity, explicit RetrievalEvent stat
 
 `SourceArtifact` was intentionally not pulled forward into Phase 1.2. Exact-byte preservation remains the Phase 1.3 responsibility.
 
-## 1.3 Source Preservation — CURRENT
+## 1.3 Source Preservation — COMPLETE
 
 Implement the Phase 0.11 SourceArtifact preservation contract for the first source.
 
@@ -437,6 +440,21 @@ runtime authority that cannot silently replace preserved bytes
 ```
 
 The design must continue to distinguish preservation from parsing, validation, normalization, interpretation, and acceptance.
+
+The closing record is [`docs/PHASE-1.3-SOURCE-PRESERVATION.md`](docs/PHASE-1.3-SOURCE-PRESERVATION.md).
+
+### 1.3 Exit Gate
+
+Phase 1.3 result:
+
+```text
+PASS — COMPLETE
+```
+
+Validated behavior includes exact-byte preservation, separated committed-object authority,
+preservation-aware readiness, explicit preserved-but-uncommitted failure semantics,
+read-only orphan reconciliation, successful application-owned SourceArtifact commit,
+retry-safe `ALREADY_CONFIRMED` behavior, and full post-reboot acceptance.
 
 ## 1.4 First External Collector
 

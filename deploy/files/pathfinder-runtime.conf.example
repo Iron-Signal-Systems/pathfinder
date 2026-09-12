@@ -5,6 +5,7 @@
 
 state_dir=/var/db/pathfinder/state
 artifacts_dir=/var/db/pathfinder/artifacts
+artifact_socket=/var/run/pathfinder-artifact/preserve.sock
 log_dir=/var/log/pathfinder
 
 database_host=10.77.0.20

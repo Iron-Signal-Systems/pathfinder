@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # PROVIDE: pathfinder
-# REQUIRE: NETWORKING
+# REQUIRE: NETWORKING pathfinder_artifactd
 # KEYWORD: shutdown
 
 . /etc/rc.subr
@@ -20,6 +20,8 @@ load_rc_config "${name}"
 
 : ${pathfinder_state_dir:=/var/db/pathfinder/state}
 : ${pathfinder_artifacts_dir:=/var/db/pathfinder/artifacts}
+: ${pathfinder_artifacts_staging_dir:=${pathfinder_artifacts_dir}/staging}
+: ${pathfinder_artifacts_objects_dir:=${pathfinder_artifacts_dir}/objects}
 : ${pathfinder_log_dir:=/var/log/pathfinder}
 
 : ${pathfinder_run_user:=pathfinder}
@@ -139,20 +141,59 @@ pathfinder_validate()
         _failed=1
     fi
 
-    for _dir in \
-        "${pathfinder_state_dir}" \
-        "${pathfinder_artifacts_dir}" \
-        "${pathfinder_log_dir}"
-    do
-        if su -m "${pathfinder_run_user}" -c \
-            "test -w '${_dir}'"
-        then
-            echo "  writable ${_dir}: PASS"
-        else
-            echo "  writable ${_dir}: FAIL"
-            _failed=1
-        fi
-    done
+    if su -m "${pathfinder_run_user}" -c \
+        "test -w '${pathfinder_state_dir}'"
+    then
+        echo "  writable ${pathfinder_state_dir}: PASS"
+    else
+        echo "  writable ${pathfinder_state_dir}: FAIL"
+        _failed=1
+    fi
+
+    if su -m "${pathfinder_run_user}" -c \
+        "test ! -w '${pathfinder_artifacts_dir}'"
+    then
+        echo "  artifact root write denied: PASS"
+    else
+        echo "  artifact root write denied: FAIL"
+        _failed=1
+    fi
+
+    if su -m "${pathfinder_run_user}" -c \
+        "test -w '${pathfinder_artifacts_staging_dir}'"
+    then
+        echo "  artifact staging write: PASS"
+    else
+        echo "  artifact staging write: FAIL"
+        _failed=1
+    fi
+
+    if su -m "${pathfinder_run_user}" -c \
+        "test -r '${pathfinder_artifacts_objects_dir}'"
+    then
+        echo "  artifact objects read: PASS"
+    else
+        echo "  artifact objects read: FAIL"
+        _failed=1
+    fi
+
+    if su -m "${pathfinder_run_user}" -c \
+        "test ! -w '${pathfinder_artifacts_objects_dir}'"
+    then
+        echo "  artifact objects write denied: PASS"
+    else
+        echo "  artifact objects write denied: FAIL"
+        _failed=1
+    fi
+
+    if su -m "${pathfinder_run_user}" -c \
+        "test -w '${pathfinder_log_dir}'"
+    then
+        echo "  writable ${pathfinder_log_dir}: PASS"
+    else
+        echo "  writable ${pathfinder_log_dir}: FAIL"
+        _failed=1
+    fi
 
     if [ -x "${pathfinder_executable}" ]; then
         echo "  executable:            INSTALLED"

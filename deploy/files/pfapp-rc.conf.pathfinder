@@ -1,3 +1,4 @@
 # Pathfinder application jail rc.conf reference.
 
 pathfinder_enable="YES"
+pathfinder_artifactd_enable="YES"

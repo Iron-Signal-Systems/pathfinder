@@ -1,5 +1,9 @@
 # Pathfinder
 
+<p align="center">
+  <img src="docs/images/pathfinder.png" alt="Pathfinder — Threat Intelligence" width="100%">
+</p>
+
 **Pathfinder by Iron Signal Systems**
 
 Pathfinder is a threat-intelligence system focused on preserving source truth, separating observation from assertion and assessment, and turning external and internal threat information into operationally useful intelligence without manufacturing certainty.
@@ -435,8 +439,14 @@ PHASE 0 EXIT GATE
 PHASE 1.1 — Runtime and Repository Foundation
     COMPLETE
 
+PHASE 1.2 — Source Foundation / Minimal Relational Schema
+    COMPLETE
+
+PHASE 1.3 — Source Preservation
+    COMPLETE
+
 CURRENT
-    Phase 1.2 — Minimal Relational Schema for the First Vertical Slice
+    Phase 1.4 — First External Collector
 ```
 
 The Phase 0 exit review is authoritative for reconciled semantics:
@@ -446,6 +456,14 @@ The Phase 0 exit review is authoritative for reconciled semantics:
 The completed Phase 1.1 runtime foundation is recorded in:
 
 [`docs/PHASE-1.1-PLATFORM-FOUNDATION.md`](docs/PHASE-1.1-PLATFORM-FOUNDATION.md)
+
+The completed Phase 1.2 source foundation is recorded in:
+
+[`docs/PHASE-1.2-SOURCE-FOUNDATION.md`](docs/PHASE-1.2-SOURCE-FOUNDATION.md)
+
+The completed Phase 1.3 source-preservation foundation is recorded in:
+
+[`docs/PHASE-1.3-SOURCE-PRESERVATION.md`](docs/PHASE-1.3-SOURCE-PRESERVATION.md)
 
 ## Phase 0 Contract Index
 
@@ -475,9 +493,9 @@ EXIT docs/PHASE-0-RECONCILIATION-EXIT.md
 
 ```text
 1.1 Runtime and Repository Foundation                    COMPLETE
-1.2 Minimal Relational Schema for the First Vertical Slice
-1.3 Source Preservation
-1.4 First External Collector
+1.2 Source Foundation / Minimal Relational Schema         COMPLETE
+1.3 Source Preservation                                  COMPLETE
+1.4 First External Collector                             CURRENT
 1.5 Manual Analyst Entry
 1.6 Observable Normalization
 1.7 Relationships

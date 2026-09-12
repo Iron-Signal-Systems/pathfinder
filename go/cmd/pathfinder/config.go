@@ -13,6 +13,7 @@ import (
 )
 
 type Config struct {
+	ArtifactSocket       string
 	ArtifactsDir         string
 	DatabaseHost         string
 	DatabaseName         string
@@ -25,11 +26,7 @@ type Config struct {
 }
 
 func checkDatabase(cfg Config) error {
-	connection, err := net.DialTimeout(
-		"tcp",
-		databaseAddress(cfg),
-		3*time.Second,
-	)
+	connection, err := net.DialTimeout("tcp", databaseAddress(cfg), 3*time.Second)
 	if err != nil {
 		return fmt.Errorf(
 			"database endpoint %s unavailable: %w",
@@ -57,10 +54,7 @@ func configPath(command string, args []string) (string, error) {
 }
 
 func databaseAddress(cfg Config) string {
-	return net.JoinHostPort(
-		cfg.DatabaseHost,
-		strconv.Itoa(cfg.DatabasePort),
-	)
+	return net.JoinHostPort(cfg.DatabaseHost, strconv.Itoa(cfg.DatabasePort))
 }
 
 func loadConfig(path string) (Config, error) {
@@ -71,6 +65,7 @@ func loadConfig(path string) (Config, error) {
 	defer file.Close()
 
 	known := map[string]bool{
+		"artifact_socket":        true,
 		"artifacts_dir":          true,
 		"database_host":          true,
 		"database_name":          true,
@@ -81,15 +76,19 @@ func loadConfig(path string) (Config, error) {
 		"readiness_listen":       true,
 		"state_dir":              true,
 	}
+
 	values := make(map[string]string)
 	scanner := bufio.NewScanner(file)
 	lineNumber := 0
+
 	for scanner.Scan() {
 		lineNumber++
 		line := strings.TrimSpace(scanner.Text())
+
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+
 		key, value, found := strings.Cut(line, "=")
 		if !found {
 			return Config{}, fmt.Errorf(
@@ -97,8 +96,10 @@ func loadConfig(path string) (Config, error) {
 				lineNumber,
 			)
 		}
+
 		key = strings.TrimSpace(key)
 		value = strings.TrimSpace(value)
+
 		if !known[key] {
 			return Config{}, fmt.Errorf(
 				"config line %d: unknown key %q",
@@ -106,6 +107,7 @@ func loadConfig(path string) (Config, error) {
 				key,
 			)
 		}
+
 		if value == "" {
 			return Config{}, fmt.Errorf(
 				"config line %d: empty value for %q",
@@ -113,6 +115,7 @@ func loadConfig(path string) (Config, error) {
 				key,
 			)
 		}
+
 		if _, exists := values[key]; exists {
 			return Config{}, fmt.Errorf(
 				"config line %d: duplicate key %q",
@@ -120,11 +123,14 @@ func loadConfig(path string) (Config, error) {
 				key,
 			)
 		}
+
 		values[key] = value
 	}
+
 	if err := scanner.Err(); err != nil {
 		return Config{}, fmt.Errorf("read config: %w", err)
 	}
+
 	for key := range known {
 		if _, exists := values[key]; !exists {
 			return Config{}, fmt.Errorf(
@@ -133,13 +139,16 @@ func loadConfig(path string) (Config, error) {
 			)
 		}
 	}
+
 	port, err := strconv.Atoi(values["database_port"])
 	if err != nil || port < 1 || port > 65535 {
 		return Config{}, fmt.Errorf(
 			"database_port must be between 1 and 65535",
 		)
 	}
+
 	cfg := Config{
+		ArtifactSocket:       values["artifact_socket"],
 		ArtifactsDir:         values["artifacts_dir"],
 		DatabaseHost:         values["database_host"],
 		DatabaseName:         values["database_name"],
@@ -150,13 +159,19 @@ func loadConfig(path string) (Config, error) {
 		ReadinessListen:      values["readiness_listen"],
 		StateDir:             values["state_dir"],
 	}
+
 	if err := validateConfig(cfg); err != nil {
 		return Config{}, err
 	}
+
 	return cfg, nil
 }
 
 func validateConfig(cfg Config) error {
+	if !filepath.IsAbs(cfg.ArtifactSocket) {
+		return fmt.Errorf("artifact_socket must be absolute")
+	}
+
 	for _, directory := range []string{
 		cfg.ArtifactsDir,
 		cfg.LogDir,
@@ -168,6 +183,7 @@ func validateConfig(cfg Config) error {
 				directory,
 			)
 		}
+
 		info, err := os.Stat(directory)
 		if err != nil {
 			return fmt.Errorf(
@@ -176,6 +192,7 @@ func validateConfig(cfg Config) error {
 				err,
 			)
 		}
+
 		if !info.IsDir() {
 			return fmt.Errorf(
 				"runtime path is not a directory: %s",
@@ -183,61 +200,58 @@ func validateConfig(cfg Config) error {
 			)
 		}
 	}
+
 	if !filepath.IsAbs(cfg.DatabasePasswordFile) {
-		return fmt.Errorf(
-			"database_password_file must be absolute",
-		)
+		return fmt.Errorf("database_password_file must be absolute")
 	}
+
 	info, err := os.Stat(cfg.DatabasePasswordFile)
 	if err != nil {
-		return fmt.Errorf(
-			"database password file: %w",
-			err,
-		)
+		return fmt.Errorf("database password file: %w", err)
 	}
+
 	if info.Mode().Perm() != 0640 {
 		return fmt.Errorf(
 			"database password file mode is %04o; expected 0640",
 			info.Mode().Perm(),
 		)
 	}
+
 	password, err := os.ReadFile(cfg.DatabasePasswordFile)
 	if err != nil {
-		return fmt.Errorf(
-			"read database password: %w",
-			err,
-		)
+		return fmt.Errorf("read database password: %w", err)
 	}
+
 	if strings.TrimSpace(string(password)) == "" {
-		return fmt.Errorf(
-			"database password file is empty",
-		)
+		return fmt.Errorf("database password file is empty")
 	}
+
 	if err := validateReadinessAddress(cfg.ReadinessListen); err != nil {
 		return err
 	}
+
 	return checkDatabase(cfg)
 }
 
 func validateReadinessAddress(address string) error {
 	host, portText, err := net.SplitHostPort(address)
 	if err != nil {
-		return fmt.Errorf(
-			"invalid readiness_listen: %w",
-			err,
-		)
+		return fmt.Errorf("invalid readiness_listen: %w", err)
 	}
+
 	ip := net.ParseIP(host)
 	if ip == nil || !ip.IsLoopback() {
 		return fmt.Errorf(
 			"readiness_listen must use a loopback IP address",
 		)
 	}
+
 	port, err := strconv.Atoi(portText)
 	if err != nil || port < 1 || port > 65535 {
 		return fmt.Errorf(
 			"readiness_listen port must be between 1 and 65535",
 		)
 	}
+
 	return nil
 }

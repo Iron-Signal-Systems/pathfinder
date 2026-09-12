@@ -64,6 +64,16 @@ expect_failure()
     return 1
 }
 
+baseline_rows=$(jexec "$DB_JAIL" su - postgres -c \
+    "/usr/local/bin/psql -d pathfinder -Atc \"
+     SELECT
+       (SELECT count(*) FROM pathfinder.source) || '|' ||
+       (SELECT count(*) FROM pathfinder.source_collection) || '|' ||
+       (SELECT count(*) FROM pathfinder.retrieval_event);
+     \"" 2>/dev/null || true)
+
+echo "baseline_runtime_rows=$baseline_rows"
+
 echo "===== VALID RUNTIME DML ====="
 positive_output=$(run_runtime_sql "$ROOT/positive-runtime.sql" 2>&1)
 positive_rc=$?
@@ -121,7 +131,7 @@ expect_failure \
     "permission denied for table schema_migration" || exit 1
 
 echo
-echo "===== VERIFY TESTS LEFT NO RUNTIME ROWS ====="
+echo "===== VERIFY TESTS LEFT RUNTIME ROW COUNTS UNCHANGED ====="
 rows=$(jexec "$DB_JAIL" su - postgres -c \
     "/usr/local/bin/psql -d pathfinder -Atc \"
      SELECT
@@ -132,10 +142,12 @@ rows=$(jexec "$DB_JAIL" su - postgres -c \
 
 echo "$rows"
 
-if [ "$rows" = "0|0|0" ]; then
-    echo "PASS: behavioral tests left no runtime rows."
+if [ "$rows" = "$baseline_rows" ]; then
+    echo "PASS: behavioral tests left runtime row counts unchanged."
 else
-    echo "FAIL: behavioral tests left persistent runtime rows."
+    echo "FAIL: behavioral tests changed persistent runtime row counts."
+    echo "before=$baseline_rows"
+    echo "after=$rows"
     exit 1
 fi
 

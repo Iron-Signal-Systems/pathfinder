@@ -33,7 +33,7 @@ Modes:
                 closed because Phase 1 construction automation is incomplete.
   --preflight   Validate the clean-host starting contract only.
   --verify      Run repository-owned verification against the current
-                validated reference installation through Phase 1.2.
+                validated reference installation through Phase 1.3.
 
 The deployment configuration is non-secret. Do not place passwords, private
 keys, API tokens, or other credentials in it.
@@ -211,7 +211,7 @@ case "$MODE" in
         ;;
 
     verify)
-        VERIFY_SCRIPT="${SCRIPT_DIR}/deploy/verify/pathfinder-phase-1.2-verify.sh"
+        VERIFY_SCRIPT="${SCRIPT_DIR}/deploy/verify/pathfinder-phase-1.3-verify.sh"
         [ -r "$VERIFY_SCRIPT" ] || fatal "verification script not found: $VERIFY_SCRIPT"
         exec /bin/sh "$VERIFY_SCRIPT" "$CONFIG"
         ;;
@@ -231,7 +231,7 @@ clean-host validates the complete required construction path documented in:
   docs/PHASE-1-FRESH-INSTALL-ACCEPTANCE.md
 
 Use --preflight to validate a clean host or --verify to validate the current
-reference installation through Phase 1.2.
+reference installation through Phase 1.3.
 EOF
         exit 3
         ;;

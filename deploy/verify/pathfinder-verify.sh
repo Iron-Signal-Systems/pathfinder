@@ -205,7 +205,7 @@ check_eq "runtime DB role has CONNECT" \
     "t"
 
 check_eq "runtime DB role lacks schema CREATE" \
-    "$(jexec "$DB_JAIL" su - postgres -c "/usr/local/bin/psql -d postgres -Atc \"SELECT has_schema_privilege('pathfinder_app','pathfinder','CREATE');\"" 2>/dev/null || echo NOT_KNOWN)" \
+    "$(jexec "$DB_JAIL" su - postgres -c "/usr/local/bin/psql -d pathfinder -Atc \"SELECT has_schema_privilege('pathfinder_app','pathfinder','CREATE');\"" 2>/dev/null || echo NOT_KNOWN)" \
     "f"
 
 check_eq "Pathfinder boot enabled" \
