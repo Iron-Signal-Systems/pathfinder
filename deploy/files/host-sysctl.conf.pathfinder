@@ -1,0 +1,6 @@
+# Pathfinder Phase 1.1 host sysctl reference.
+
+net.link.bridge.pfil_member=1
+net.link.bridge.pfil_bridge=0
+net.link.bridge.pfil_local_phys=1
+net.link.bridge.pfil_onlyip=1
