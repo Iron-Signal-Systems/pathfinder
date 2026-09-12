@@ -19,8 +19,11 @@ Phase 0 Exit Gate
 Phase 1.1 — Runtime and Repository Foundation
     COMPLETE
 
+Phase 1.2 — Source Foundation / Minimal Relational Schema
+    COMPLETE
+
 Current work
-    Phase 1.2 — Minimal Relational Schema for the First Vertical Slice
+    Phase 1.3 — Source Preservation
 ```
 
 The governing Phase 0 reconciliation document is:
@@ -30,6 +33,10 @@ The governing Phase 0 reconciliation document is:
 The completed Phase 1.1 runtime foundation is recorded in:
 
 [`docs/PHASE-1.1-PLATFORM-FOUNDATION.md`](docs/PHASE-1.1-PLATFORM-FOUNDATION.md)
+
+The completed Phase 1.2 source foundation is recorded in:
+
+[`docs/PHASE-1.2-SOURCE-FOUNDATION.md`](docs/PHASE-1.2-SOURCE-FOUNDATION.md)
 
 Phase 1 fresh-install acceptance is governed by:
 
@@ -380,42 +387,56 @@ how validation is invoked
 how the service is built, installed, started, stopped, and restored after reboot
 ```
 
-## 1.2 Minimal Relational Schema for the First Vertical Slice
+## 1.2 Source Foundation / Minimal Relational Schema — COMPLETE
 
-Implement only the relational schema required for the first complete vertical slice.
-
-Do **not** create speculative tables for every conceptual Phase 0 object simply because the object has been named.
-
-Expected early records include where required:
+Phase 1.2 implemented the minimum relational source/provenance slice required to move into raw-source preservation:
 
 ```text
+schema_migration
 Source
 SourceCollection
 RetrievalEvent
-SourceArtifact
-SourceRecord
-Assertion
-Observable
-Indicator
-Sighting
-Assessment
-Relationship
-LifecycleEvent
-IntelligenceConflict
-ProcessingRecord
-AuditEvent
-ChangeRecord / ChangeSet
 ```
 
-Additional object families such as ThreatActor, Campaign, Malware, Tool, Vulnerability, Technique, Infrastructure, and Report require concrete schema contracts before implementation unless the selected first source/workload actually needs them.
+It also replaced the Phase 1.1 migration preflight stub with the real embedded migration runner, including ordered versions, SHA-256 tracking, advisory locking, dry-run rollback, idempotency, and fail-closed checksum mismatch handling.
 
-The schema must use typed status/state domains rather than one generic `status` field.
+The runtime role receives only the DML required by this slice and cannot delete the source records, perform DDL, read migration history, or invoke migrations as the non-root service identity.
 
-## 1.3 Source Preservation
+The closing record is [`docs/PHASE-1.2-SOURCE-FOUNDATION.md`](docs/PHASE-1.2-SOURCE-FOUNDATION.md).
+
+### 1.2 Exit Gate
+
+Phase 1.2 result:
+
+```text
+PASS — COMPLETE
+```
+
+Repository-owned validation covers UUIDv7 identity, explicit RetrievalEvent state, valid completion transition, Source/SourceCollection consistency, runtime privileges, migration tamper rejection, and zero test residue.
+
+`SourceArtifact` was intentionally not pulled forward into Phase 1.2. Exact-byte preservation remains the Phase 1.3 responsibility.
+
+## 1.3 Source Preservation — CURRENT
 
 Implement the Phase 0.11 SourceArtifact preservation contract for the first source.
 
 The exact artifact must be committed before authoritative semantic processing proceeds where the source contract requires preservation.
+
+Phase 1.3 must establish at least:
+
+```text
+SourceArtifact identity and retrieval-event ownership
+exact acquired byte preservation
+SHA-256 integrity over exact bytes
+immutable artifact storage semantics
+metadata sufficient to locate and verify preserved bytes
+safe duplicate-content handling without rewriting provenance
+storage-write / database-commit failure behavior
+restart/interruption behavior
+runtime authority that cannot silently replace preserved bytes
+```
+
+The design must continue to distinguish preservation from parsing, validation, normalization, interpretation, and acceptance.
 
 ## 1.4 First External Collector
 

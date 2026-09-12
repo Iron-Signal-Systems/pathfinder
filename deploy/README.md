@@ -1,6 +1,6 @@
 # Pathfinder Deployment Assets
 
-These files capture the validated Phase 1.1 FreeBSD runtime/platform foundation and support the repository-owned Phase 1 fresh-install path.
+These files capture the validated Pathfinder reference installation through Phase 1.2 and support the repository-owned Phase 1 fresh-install path.
 
 The stable operator entry point is the repository-root script:
 
@@ -8,7 +8,7 @@ The stable operator entry point is the repository-root script:
 sh install.sh --config /path/to/pathfinder.conf
 ```
 
-Phase 1 is still under development. `install.sh` intentionally refuses a partial installation until every required Phase 1 construction stage is automated and clean-host validated. It already provides clean-host preflight and installed-system verification routing.
+Phase 1 is still under development. `install.sh` intentionally refuses a partial installation until every required Phase 1 construction stage is automated and clean-host validated. It provides clean-host preflight and installed-system verification routing.
 
 ## Current Contents
 
@@ -32,18 +32,28 @@ deploy/
         postgresql.conf.pathfinder
     verify/
         pathfinder-verify.sh
+        pathfinder-phase-1.2-verify.sh
+        phase-1.2/
+            run-behavior-tests.sh
+            positive-runtime.sql
+            reject-invalid-completion.sql
+            reject-invalid-reported-count.sql
+            reject-mismatched-source.sql
+            reject-runtime-delete.sql
+            reject-runtime-migration-read.sql
 ```
 
 `pathfinder.conf.example` contains installation-specific non-secret values for the validated reference build.
 
 `files/` contains known-good reference configuration for the FreeBSD host, jail, PF, PostgreSQL, and Pathfinder service/runtime boundaries. Files with reference IP addresses or interface names must be rendered from deployment configuration by the general installer rather than copied blindly.
 
-`verify/pathfinder-verify.sh` validates the Phase 1.1 host, jail, PF, PostgreSQL, Pathfinder service, health/readiness, migration-secret isolation, migration preflight, and runtime-toolchain boundary. It exits non-zero if a required invariant fails.
+The original `verify/pathfinder-verify.sh` remains the Phase 1.1 platform/runtime verifier. `verify/pathfinder-phase-1.2-verify.sh` runs that baseline first, then validates migration 0001, schema ownership, runtime privileges, and the Phase 1.2 Source/SourceCollection/RetrievalEvent behavioral contract.
 
-The validated Go runtime source is stored under:
+The validated Go runtime source and embedded migrations are stored under:
 
 ```text
 go/cmd/pathfinder/
+go/cmd/pathfinder/migrations/
 ```
 
 ## Clean-Host Starting Contract
@@ -58,7 +68,7 @@ root account
 one non-root user in wheel
 ```
 
-The installer must not require pre-existing Git, Go, PostgreSQL, Pathfinder identities, jail templates, Pathfinder jails, Pathfinder datasets, PF policy, Pathfinder secrets, or Pathfinder services.
+The installer must not require pre-existing Git, Go, PostgreSQL, Pathfinder identities, jail templates, Pathfinder jails, Pathfinder datasets, PF policy, Pathfinder secrets, Pathfinder migrations, or Pathfinder services.
 
 FreeBSD base-system tools may be used to acquire and construct the system. Package/runtime dependencies required by Pathfinder are installer-owned.
 
@@ -77,7 +87,7 @@ able to verify every required boundary
 clean-host tested
 ```
 
-It must not silently overwrite an incompatible existing jail, dataset, bridge, PF policy, host network boundary, PostgreSQL installation, or secret.
+It must not silently overwrite an incompatible existing jail, dataset, bridge, PF policy, host network boundary, PostgreSQL installation, migration history, or secret.
 
 The installer must own the applicable construction sequence:
 
@@ -105,16 +115,17 @@ create Pathfinder service identity
 mount runtime state/artifact/pgdata datasets
 install Pathfinder configuration and rc.d service
 build/install Pathfinder or install a validated release artifact
-run explicit migrations
+run explicit embedded migrations
+validate migration ledger/checksums
 enable/start services
 run repository-owned verification
 prove graceful shutdown and reboot persistence
 remove temporary build dependencies from the runtime appliance
 ```
 
-## Current Phase 1.1 Reference Boundary
+## Current Reference Boundary
 
-The final validated steady-state network direction is:
+The validated steady-state network direction remains:
 
 ```text
 PFAPP
@@ -131,7 +142,20 @@ PFDB
     other traffic                           DENY
 ```
 
-The earlier temporary PFDB HTTPS bootstrap allowance is no longer part of the reference runtime policy.
+Phase 1.2 additionally requires:
+
+```text
+migration 0001 source-foundation applied exactly once
+recorded migration SHA-256 matches embedded bytes
+Source / SourceCollection / RetrievalEvent owned by pathfinder_owner
+pathfinder_app has SELECT / INSERT / UPDATE only for the current source slice
+pathfinder_app has no DELETE on the source slice
+pathfinder_app cannot read schema_migration
+non-root Pathfinder service cannot invoke migration
+Go toolchain absent from final runtime jail
+```
+
+The earlier temporary PFDB HTTPS bootstrap allowance is not part of the reference runtime policy.
 
 ## Reference vs. General Installer
 
@@ -161,7 +185,7 @@ Preflight only:
 sh install.sh --preflight --config /path/to/pathfinder.conf
 ```
 
-Verify an installed Phase 1.1 system:
+Verify the current reference installation through Phase 1.2:
 
 ```sh
 sh install.sh --verify --config /path/to/pathfinder.conf
@@ -170,6 +194,10 @@ sh install.sh --verify --config /path/to/pathfinder.conf
 The Phase 1.1 closing architecture and test record is:
 
 [`../docs/PHASE-1.1-PLATFORM-FOUNDATION.md`](../docs/PHASE-1.1-PLATFORM-FOUNDATION.md)
+
+The Phase 1.2 source-foundation closing record is:
+
+[`../docs/PHASE-1.2-SOURCE-FOUNDATION.md`](../docs/PHASE-1.2-SOURCE-FOUNDATION.md)
 
 The Phase 1 clean-host exit contract is:
 
