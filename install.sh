@@ -95,6 +95,7 @@ fi
 required_variables="
 PATHFINDER_RELEASE
 PATHFINDER_PATCH_LEVEL
+POSTGRESQL_MAJOR
 ZPOOL
 EXT_IF
 DNS_SERVER
@@ -201,6 +202,7 @@ info "FreeBSD: $actual_version"
 info "architecture: amd64"
 info "ZFS pool: $ZPOOL"
 info "external interface: $EXT_IF"
+info "PostgreSQL major: $POSTGRESQL_MAJOR"
 info "deployment config: $CONFIG"
 
 case "$MODE" in
