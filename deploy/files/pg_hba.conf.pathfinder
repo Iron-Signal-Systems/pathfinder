@@ -1,0 +1,8 @@
+# Pathfinder Phase 1.1 PostgreSQL host authentication reference.
+# Installation tooling must render APP_IP from deployment configuration.
+
+local   all         all                                  peer
+host    pathfinder  pathfinder_app       10.77.0.10/32   scram-sha-256
+host    pathfinder  pathfinder_migrator  10.77.0.10/32   scram-sha-256
+host    all         all                  0.0.0.0/0        reject
+host    all         all                  ::0/0            reject
