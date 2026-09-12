@@ -290,6 +290,32 @@ acceptance.
 The snapshot is an appliance validation point, not a substitute for migration
 history or release backup strategy.
 
+## Final Phase 1.3 Checkpoint
+
+After hardened binary promotion and full post-reboot acceptance,
+Pathfinder, artifactd, and PostgreSQL were quiesced and a final
+recursive Phase 1.3 checkpoint was created:
+
+```text
+zroot/pathfinder@phase-1.3-complete
+zroot/pathfinder/artifacts@phase-1.3-complete
+zroot/pathfinder/artifacts/objects@phase-1.3-complete
+zroot/pathfinder/artifacts/staging@phase-1.3-complete
+zroot/pathfinder/pgdata@phase-1.3-complete
+zroot/pathfinder/state@phase-1.3-complete
+```
+
+Services were restarted in dependency order after the snapshot.
+Post-snapshot readiness returned `ready` and SourceArtifact
+reconciliation returned:
+
+```text
+database_records=1
+findings=0
+```
+
+The earlier `@phase-1.3-validated` checkpoint is intentionally retained.
+
 ## Final Reboot Acceptance
 
 The final Phase 1.3 runtime survived a full host reboot with PostgreSQL,
@@ -319,10 +345,10 @@ Validated final FreeBSD binary SHA-256 values:
 
 ```text
 pathfinder
-f736026147d3035778285034be53f05413bd7d107dddbcddf5e3d193bfc8cfb6
+c8dd30e3b24c14d72cc405c185eef83017a865eca4622aa5e800c7d623e287ef
 
 pathfinder-artifactd
-84f29b330a4fab0e8e44eb6cb021768e4ad5ea71544dc19cfee4b16e51142429
+7fe5cc7fa3eb6d3de72a78fa01e8ddf30f4e5b6dc0091c2c6d39f034acd6015a
 ```
 
 ## Phase 1.3 Exit Gate
