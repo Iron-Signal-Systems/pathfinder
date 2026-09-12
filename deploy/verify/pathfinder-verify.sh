@@ -87,16 +87,16 @@ else
     fail "$BRIDGE_IF has ${PRIVATE_GATEWAY}"
 fi
 
-if ifconfig "$BRIDGE_IF" 2>/dev/null | grep -q 'member: epair10a'; then
-    pass "$BRIDGE_IF contains epair10a"
+if ifconfig "$BRIDGE_IF" 2>/dev/null | grep -q "member: ${APP_EPAIR}a"; then
+    pass "$BRIDGE_IF contains ${APP_EPAIR}a"
 else
-    fail "$BRIDGE_IF contains epair10a"
+    fail "$BRIDGE_IF contains ${APP_EPAIR}a"
 fi
 
-if ifconfig "$BRIDGE_IF" 2>/dev/null | grep -q 'member: epair20a'; then
-    pass "$BRIDGE_IF contains epair20a"
+if ifconfig "$BRIDGE_IF" 2>/dev/null | grep -q "member: ${DB_EPAIR}a"; then
+    pass "$BRIDGE_IF contains ${DB_EPAIR}a"
 else
-    fail "$BRIDGE_IF contains epair20a"
+    fail "$BRIDGE_IF contains ${DB_EPAIR}a"
 fi
 
 check_eq "IPv4 forwarding enabled" \
@@ -133,13 +133,13 @@ else
     fail "app to database PostgreSQL rule present"
 fi
 
-if jexec "$APP_JAIL" ifconfig epair10b 2>/dev/null | grep -q "inet ${APP_IP} "; then
+if jexec "$APP_JAIL" ifconfig "${APP_EPAIR}b" 2>/dev/null | grep -q "inet ${APP_IP} "; then
     pass "$APP_JAIL address ${APP_IP}"
 else
     fail "$APP_JAIL address ${APP_IP}"
 fi
 
-if jexec "$DB_JAIL" ifconfig epair20b 2>/dev/null | grep -q "inet ${DB_IP} "; then
+if jexec "$DB_JAIL" ifconfig "${DB_EPAIR}b" 2>/dev/null | grep -q "inet ${DB_IP} "; then
     pass "$DB_JAIL address ${DB_IP}"
 else
     fail "$DB_JAIL address ${DB_IP}"
@@ -182,11 +182,11 @@ fi
 pg_version=$(jexec "$DB_JAIL" su - postgres -c \
     "/usr/local/bin/psql -d postgres -Atc 'SHOW server_version;'" 2>/dev/null || true)
 case "$pg_version" in
-    18.*)
-        pass "PostgreSQL 18 runtime"
+    "${POSTGRESQL_MAJOR}."*)
+        pass "PostgreSQL ${POSTGRESQL_MAJOR} runtime"
         ;;
     *)
-        fail "PostgreSQL 18 runtime (actual: ${pg_version:-NOT_KNOWN})"
+        fail "PostgreSQL ${POSTGRESQL_MAJOR} runtime (actual: ${pg_version:-NOT_KNOWN})"
         ;;
 esac
 
