@@ -25,8 +25,11 @@ Phase 1.2 — Source Foundation / Minimal Relational Schema
 Phase 1.3 — Source Preservation
     COMPLETE
 
+Phase 1.4 — First External Collector
+    COMPLETE
+
 Current work
-    Phase 1.4 — First External Collector
+    Phase 1.5 — Manual Analyst Entry
 ```
 
 The governing Phase 0 reconciliation document is:
@@ -40,6 +43,14 @@ The completed Phase 1.1 runtime foundation is recorded in:
 The completed Phase 1.2 source foundation is recorded in:
 
 [`docs/PHASE-1.2-SOURCE-FOUNDATION.md`](docs/PHASE-1.2-SOURCE-FOUNDATION.md)
+
+The completed Phase 1.3 source-preservation foundation is recorded in:
+
+[`docs/PHASE-1.3-SOURCE-PRESERVATION.md`](docs/PHASE-1.3-SOURCE-PRESERVATION.md)
+
+The completed Phase 1.4 first external collector is recorded in:
+
+[`docs/PHASE-1.4-FIRST-EXTERNAL-COLLECTOR.md`](docs/PHASE-1.4-FIRST-EXTERNAL-COLLECTOR.md)
 
 Phase 1 fresh-install acceptance is governed by:
 
@@ -456,31 +467,47 @@ preservation-aware readiness, explicit preserved-but-uncommitted failure semanti
 read-only orphan reconciliation, successful application-owned SourceArtifact commit,
 retry-safe `ALREADY_CONFIRMED` behavior, and full post-reboot acceptance.
 
-## 1.4 First External Collector
+## 1.4 First External Collector — COMPLETE
 
-Implement one external intelligence source end to end.
+Phase 1.4 implemented one external intelligence source end to end using the CISA Known Exploited Vulnerabilities catalog.
 
-The proof path is:
+The validated path is:
 
 ```text
 retrieve
   ↓
-preserve SourceArtifact
+preserve exact SourceArtifact
   ↓
-create SourceRecord
+create stable SourceRecord
   ↓
-record Assertion
+record SourceRecordProcessing
   ↓
-normalize
+resolve native Vulnerability
   ↓
-commit native records
+record source-attributable Assertion
   ↓
-query
+commit semantic state + ProcessingEvent + CollectorCheckpoint
+  ↓
+query complete provenance
 ```
 
-Failure, partial processing, retry, provenance, and checkpoint behavior are part of the implementation—not later polish.
+Failure preservation, partial processing, retry/idempotency, interruption recovery, provenance, checkpoint behavior, immutable SourceRecord identity, and useful CVE query behavior were validated as part of the implementation.
 
-## 1.5 Manual Analyst Entry
+The closing record is [`docs/PHASE-1.4-FIRST-EXTERNAL-COLLECTOR.md`](docs/PHASE-1.4-FIRST-EXTERNAL-COLLECTOR.md).
+
+### 1.4 Exit Gate
+
+Phase 1.4 result:
+
+```text
+PASS — COMPLETE
+```
+
+The accepted Pathfinder runtime was built from source revision `29ea01da2b5df83bf3028cfb3a7f4eae2b90240d` and survived full reboot acceptance unchanged. The final recursive `@phase-1.4-complete` appliance checkpoint was created after acceptance.
+
+Phase 1.4 proves the external-collector contract and CISA KEV reference implementation. It does not claim a generalized collector scheduler, multi-feed plugin framework, or polished collector operator workflow.
+
+## 1.5 Manual Analyst Entry — CURRENT
 
 Implement a narrow authorized manual-entry path without allowing analyst input to impersonate an external source or rewrite existing history.
 

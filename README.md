@@ -445,8 +445,11 @@ PHASE 1.2 — Source Foundation / Minimal Relational Schema
 PHASE 1.3 — Source Preservation
     COMPLETE
 
+PHASE 1.4 — First External Collector
+    COMPLETE
+
 CURRENT
-    Phase 1.4 — First External Collector
+    Phase 1.5 — Manual Analyst Entry
 ```
 
 The Phase 0 exit review is authoritative for reconciled semantics:
@@ -464,6 +467,10 @@ The completed Phase 1.2 source foundation is recorded in:
 The completed Phase 1.3 source-preservation foundation is recorded in:
 
 [`docs/PHASE-1.3-SOURCE-PRESERVATION.md`](docs/PHASE-1.3-SOURCE-PRESERVATION.md)
+
+The completed Phase 1.4 first external collector is recorded in:
+
+[`docs/PHASE-1.4-FIRST-EXTERNAL-COLLECTOR.md`](docs/PHASE-1.4-FIRST-EXTERNAL-COLLECTOR.md)
 
 ## Phase 0 Contract Index
 
@@ -495,8 +502,8 @@ EXIT docs/PHASE-0-RECONCILIATION-EXIT.md
 1.1 Runtime and Repository Foundation                    COMPLETE
 1.2 Source Foundation / Minimal Relational Schema         COMPLETE
 1.3 Source Preservation                                  COMPLETE
-1.4 First External Collector                             CURRENT
-1.5 Manual Analyst Entry
+1.4 First External Collector                             COMPLETE
+1.5 Manual Analyst Entry                                 CURRENT
 1.6 Observable Normalization
 1.7 Relationships
 1.8 Sightings

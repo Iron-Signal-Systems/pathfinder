@@ -1,8 +1,8 @@
 # Phase 1.4 — First External Collector
 
-Status: **CURRENT / SCHEMA CANDIDATE UNDER VALIDATION**
+Status: **COMPLETE — ACCEPTED 2026-09-13**
 
-Phase 1.4 implements Pathfinder's first complete external intelligence collection path.
+Phase 1.4 implemented Pathfinder's first complete external intelligence collection path.
 
 The initial external source is the CISA Known Exploited Vulnerabilities (KEV) catalog.
 
@@ -366,9 +366,9 @@ New Phase 1.4 tables grant runtime only the minimum privileges required by their
 
 ## Query Proof
 
-Phase 1.4 is not complete merely because rows exist.
+Phase 1.4 was not considered complete merely because rows existed.
 
-The first useful query must be able to begin with a CVE and walk back through the complete acquisition and processing lineage.
+The first useful query begins with a CVE and walks back through the complete acquisition and processing lineage.
 
 Conceptually:
 
@@ -392,6 +392,73 @@ Source
 CollectorCheckpoint
 ```
 
+## Final Acceptance Record
+
+Phase 1.4 completed appliance acceptance on 2026-09-13.
+
+The accepted Pathfinder runtime was built from the clean source revision:
+
+```text
+29ea01da2b5df83bf3028cfb3a7f4eae2b90240d
+```
+
+with embedded VCS state:
+
+```text
+vcs.revision=29ea01da2b5df83bf3028cfb3a7f4eae2b90240d
+vcs.modified=false
+```
+
+Accepted runtime SHA-256 values are:
+
+```text
+pathfinder
+5ae436d245a58af41759f2d16830f856d26bd229d13ec1e5460e33fd83bf360f
+
+pathfinder-artifactd
+7fe5cc7fa3eb6d3de72a78fa01e8ddf30f4e5b6dc0091c2c6d39f034acd6015a
+```
+
+The canonical CISA KEV acceptance retrieval returned HTTP 200 and preserved the exact response entity body. The accepted snapshot contained 1709 records with catalog version `2026.09.11`; the preserved artifact SHA-256 was:
+
+```text
+c27673ad6c346c50f573c566f14c11c373e4ae452880d2cdb8f01a364e1e630b
+```
+
+Acceptance proved real-source retrieval, exact-byte preservation before interpretation, stable SourceRecord identity, ProcessingRun / ProcessingEvent lifecycle, per-record lineage, native CVE identity, source-attributable KNOWN_EXPLOITED Assertions, retry/idempotency behavior, interruption recovery, malformed-artifact failure preservation, cross-artifact rejection, immutable SourceRecord identity enforcement, repository-owned fuzz coverage, and a useful CVE query with complete provenance.
+
+After validation cleanup, production semantic tables remained pristine:
+
+```text
+processing_run             0
+processing_event           0
+source_record_processing   0
+source_record              0
+vulnerability              0
+assertion                  0
+collector_checkpoint       0
+```
+
+SourceArtifact reconciliation remained:
+
+```text
+database_records=1
+findings=0
+```
+
+The promoted runtime survived a full host reboot unchanged. Migrations 0001 through 0007 remained idempotently applied, readiness returned healthy, Go remained absent from the application jail, and the repository remained clean.
+
+Two recursive appliance checkpoints are retained:
+
+```text
+@phase-1.4-pre-promotion
+@phase-1.4-complete
+```
+
+Each checkpoint exists on the Pathfinder root dataset and its five child datasets.
+
+Any later documentation-only commit recording this closure is not the source revision of the accepted runtime. The accepted runtime remains tied to `29ea01da2b5df83bf3028cfb3a7f4eae2b90240d`.
+
 ## Explicitly Out of Scope
 
 Phase 1.4 does not implement:
@@ -413,7 +480,13 @@ multiple external collectors
 
 ## Phase 1.4 Exit Gate
 
-Phase 1.4 remains incomplete until the reference FreeBSD appliance proves:
+Phase 1.4 result:
+
+```text
+PASS — COMPLETE
+```
+
+The validated reference FreeBSD appliance proved:
 
 ```text
 real external HTTPS retrieval                              PASS
@@ -438,4 +511,4 @@ useful CVE query with provenance                           PASS
 repository-owned verifier                                  PASS
 ```
 
-The phase remains incomplete until those behaviors are reproducible and repository-owned.
+These behaviors are repository-owned and reproducible on the validated reference FreeBSD appliance.
