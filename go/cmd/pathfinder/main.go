@@ -30,6 +30,8 @@ func main() {
 	case "version":
 		fmt.Printf("Pathfinder %s\n", version)
 		return
+	case "vulnerability":
+		err = runVulnerability(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -42,5 +44,5 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: pathfinder <migrate|preserve|serve|source-artifact|validate|version>")
+	fmt.Fprintln(os.Stderr, "usage: pathfinder <migrate|preserve|serve|source-artifact|validate|version|vulnerability>")
 }

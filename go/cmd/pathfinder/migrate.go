@@ -110,6 +110,56 @@ WHERE version = %d;
 	return true, nil
 }
 
+func migrationDryRunSQL(items []migration) string {
+	var sql strings.Builder
+
+	sql.WriteString(`
+BEGIN;
+
+SELECT pg_advisory_xact_lock(
+    hashtextextended('pathfinder-schema-migration', 0)
+);
+
+SET ROLE pathfinder_owner;
+`)
+
+	for _, item := range items {
+		fmt.Fprintf(
+			&sql,
+			`
+-- Pathfinder migration %04d %s
+
+%s
+
+INSERT INTO pathfinder.schema_migration (
+    version,
+    name,
+    sha256,
+    applied_by
+)
+VALUES (
+    %d,
+    '%s',
+    '%s',
+    session_user
+);
+`,
+			item.Version,
+			item.Name,
+			item.SQL,
+			item.Version,
+			item.Name,
+			item.SHA256,
+		)
+	}
+
+	sql.WriteString(`
+ROLLBACK;
+`)
+
+	return sql.String()
+}
+
 func migrationSQL(item migration, dryRun bool) string {
 	finalStatement := "COMMIT;"
 	if dryRun {
@@ -265,8 +315,7 @@ func runMigrate(args []string) error {
 		return err
 	}
 
-	pending := 0
-	applied := 0
+	pendingItems := make([]migration, 0, len(migrations))
 
 	for _, item := range migrations {
 		isApplied, err := migrationApplied(
@@ -287,36 +336,54 @@ func runMigrate(args []string) error {
 			continue
 		}
 
-		pending++
+		pendingItems = append(pendingItems, item)
+	}
 
-		if options.DryRun {
+	pending := len(pendingItems)
+	applied := 0
+
+	if options.DryRun {
+		for _, item := range pendingItems {
 			fmt.Printf(
 				"Migration %04d %s: DRY_RUN\n",
 				item.Version,
 				item.Name,
 			)
-		} else {
+		}
+
+		if len(pendingItems) != 0 {
+			if _, err := runPSQL(
+				cfg,
+				passfilePath,
+				migrationDryRunSQL(pendingItems),
+			); err != nil {
+				return fmt.Errorf(
+					"pending migration dry run failed: %w",
+					err,
+				)
+			}
+		}
+	} else {
+		for _, item := range pendingItems {
 			fmt.Printf(
 				"Migration %04d %s: APPLY\n",
 				item.Version,
 				item.Name,
 			)
-		}
 
-		if _, err := runPSQL(
-			cfg,
-			passfilePath,
-			migrationSQL(item, options.DryRun),
-		); err != nil {
-			return fmt.Errorf(
-				"migration %04d %s failed: %w",
-				item.Version,
-				item.Name,
-				err,
-			)
-		}
+			if _, err := runPSQL(
+				cfg,
+				passfilePath,
+				migrationSQL(item, false),
+			); err != nil {
+				return fmt.Errorf(
+					"migration %04d %s failed: %w",
+					item.Version,
+					item.Name,
+					err,
+				)
+			}
 
-		if !options.DryRun {
 			applied++
 		}
 	}

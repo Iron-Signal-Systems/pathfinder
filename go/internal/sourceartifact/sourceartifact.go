@@ -128,6 +128,13 @@ func ExpectedStorageReference(digest string) string {
 		return ""
 	}
 
+	for _, character := range digest {
+		if (character < '0' || character > '9') &&
+			(character < 'a' || character > 'f') {
+			return ""
+		}
+	}
+
 	return filepath.ToSlash(
 		filepath.Join(
 			"objects",

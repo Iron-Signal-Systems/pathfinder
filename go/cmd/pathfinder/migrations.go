@@ -56,6 +56,31 @@ func loadMigrations() ([]migration, error) {
 			Path:    "migrations/0002-source-artifact.sql",
 			Version: 2,
 		},
+		{
+			Name:    "source-record-foundation",
+			Path:    "migrations/0003-source-record.sql",
+			Version: 3,
+		},
+		{
+			Name:    "processing-history",
+			Path:    "migrations/0004-processing-history.sql",
+			Version: 4,
+		},
+		{
+			Name:    "vulnerability-identity",
+			Path:    "migrations/0005-vulnerability.sql",
+			Version: 5,
+		},
+		{
+			Name:    "source-assertion",
+			Path:    "migrations/0006-assertion.sql",
+			Version: 6,
+		},
+		{
+			Name:    "collector-checkpoint",
+			Path:    "migrations/0007-collector-checkpoint.sql",
+			Version: 7,
+		},
 	}
 
 	items := make([]migration, 0, len(paths))
