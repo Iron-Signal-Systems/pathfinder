@@ -38,8 +38,7 @@ func AuditFile(path string, stream Stream, expectedSensorID string, since, until
 		if _, err := f.Seek(-1, io.SeekEnd); err != nil { return result, err }
 		b := make([]byte, 1)
 		if _, err := io.ReadFull(f, b); err != nil { return result, err }
-		if b[0] != '
-' { return result, fmt.Errorf("active snapshot has incomplete trailing line") }
+		if b[0] != '\n' { return result, fmt.Errorf("active snapshot has incomplete trailing line") }
 		if _, err := f.Seek(0, io.SeekStart); err != nil { return result, err }
 	}
 	h := sha256.New()
