@@ -200,6 +200,16 @@ func audit(root, key string) ([]segment, map[string]int64, error) {
 		if !d.Type().IsRegular() {
 			return fmt.Errorf("non-regular path in archive: %s", path)
 		}
+		// This exact root-level file is a frozen-capture transfer artifact,
+		// not a sensor JSONL segment. Do not ignore other unexpected files.
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		if rel == ".pathfinder-transfer.tar" {
+			fmt.Printf("SKIP_TRANSFER_ARTIFACT %s\n", rel)
+			return nil
+		}
 		if !strings.HasSuffix(path, ".jsonl.gz") && !strings.HasSuffix(path, ".jsonl.active") {
 			return fmt.Errorf("unexpected input file: %s", path)
 		}
