@@ -45,6 +45,11 @@ func TestLoadMigrationsPhase14Identity(t *testing.T) {
 			sha256:  "359c69f1ee9d08cd97c2bfbd26d5665de1a6aaf7e5a49a68be452f0c6ce7be51",
 			version: 7,
 		},
+		{
+			name:    "sensor-observation-sor",
+			sha256:  "dd8bcb02b46aefc1cd30ce8846ffa5155624238ddf29828d42f4e93aaba62b1d",
+			version: 8,
+		},
 	}
 
 	items, err := loadMigrations()
