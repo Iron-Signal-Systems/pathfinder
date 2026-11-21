@@ -66,3 +66,56 @@ func TestPreserveRejectsChangedSourceAfterAudit(t *testing.T) {
 		t.Fatalf("expected drift failure got %v", err)
 	}
 }
+
+
+func TestAuditIgnoresOnlyRootTransferArchive(t *testing.T) {
+	root := t.TempDir()
+	observation := "{\"observed_at\":\"2026-11-20T10:00:00Z\"," +
+		"\"schema_version\":\"5\",\"sensor_id\":\"Gateway\"," +
+		"\"observed\":{},\"context\":{},\"enrichment\":{}}\n"
+	if err := os.WriteFile(filepath.Join(root, "observations-1.jsonl.active"),
+		[]byte(observation), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Transfer packaging is not an observation stream, even when it is
+	// colocated with the read-only nine-file source snapshot.
+	if err := os.WriteFile(filepath.Join(root, ".pathfinder-transfer.tar"),
+		[]byte("transfer packaging, not JSONL"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	files, counts, err := audit(root, "Gateway")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || counts["observations"] != 1 ||
+		counts["conntrack"] != 0 || counts["identity"] != 0 ||
+		counts["health"] != 0 {
+		t.Fatalf("unexpected audit files=%v counts=%v", files, counts)
+	}
+
+	// Do not silently discard an unknown root-level object.
+	other := filepath.Join(root, ".different-transfer.tar")
+	if err := os.WriteFile(other, []byte("unknown"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := audit(root, "Gateway"); err == nil ||
+		!strings.Contains(err.Error(), "unexpected input file") {
+		t.Fatalf("unknown root-level object silently accepted: %v", err)
+	}
+	if err := os.Remove(other); err != nil {
+		t.Fatal(err)
+	}
+
+	// The exemption is for the exact root-level filename, not a wildcard.
+	if err := os.Mkdir(filepath.Join(root, "unexpected"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(root, "unexpected", ".pathfinder-transfer.tar")
+	if err := os.WriteFile(nested, []byte("unknown"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := audit(root, "Gateway"); err == nil ||
+		!strings.Contains(err.Error(), "unexpected input file") {
+		t.Fatalf("nested transfer file silently accepted: %v", err)
+	}
+}
