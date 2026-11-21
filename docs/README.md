@@ -44,6 +44,7 @@ The current development branch carries the source-backed sensor SoR schema, data
 
 - [`DB-DATA-DICTIONARY.md`](DB-DATA-DICTIONARY.md) — every table and column across migrations 0001–0008
 - [`SENSOR-SOR-ACCEPTANCE.md`](SENSOR-SOR-ACCEPTANCE.md) — replay and historical-query test contracts
+- [`SENSOR-SOR-BACKFILL-RUNBOOK.md`](SENSOR-SOR-BACKFILL-RUNBOOK.md) — all-nine-file frozen archive import and database-sourced SNI
 - [`SENSOR-INGEST-DEVELOPMENT.md`](SENSOR-INGEST-DEVELOPMENT.md) — real UDM-Pro capture validation
 
 These files document **unreleased development**. Migration 0008 has not been executed against a live Pathfinder PostgreSQL instance.
