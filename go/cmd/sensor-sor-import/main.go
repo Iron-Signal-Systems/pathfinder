@@ -200,18 +200,28 @@ func audit(root, key string) ([]segment, map[string]int64, error) {
 		if !d.Type().IsRegular() {
 			return fmt.Errorf("non-regular path in archive: %s", path)
 		}
-		// This exact root-level file is a frozen-capture transfer artifact,
-		// not a sensor JSONL segment. Do not ignore other unexpected files.
+		// Discover evidence by its supported JSONL format and stream path.
+		// Transfer archives, file manifests and other regular sidecars are
+		// never source observations: report every one, but do not parse it.
+		// Reject unsupported JSONL encodings rather than silently dropping
+		// a source stream (and still enforce exact file/record totals below).
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
-		if rel == ".pathfinder-transfer.tar" {
-			fmt.Printf("SKIP_TRANSFER_ARTIFACT %s\n", rel)
+		isJSONL := strings.HasSuffix(path, ".jsonl.gz") ||
+			strings.HasSuffix(path, ".jsonl.active")
+		if !isJSONL {
+			base := filepath.Base(path)
+			if strings.Contains(base, ".jsonl") ||
+				strings.HasPrefix(base, "observations-") ||
+				strings.HasPrefix(base, "conntrack-") ||
+				strings.HasPrefix(base, "endpoint-identity-") ||
+				strings.HasPrefix(base, "health-") {
+				return fmt.Errorf("unsupported sensor data file: %s", path)
+			}
+			fmt.Printf("SKIP_NON_SENSOR_FILE %s\n", filepath.ToSlash(rel))
 			return nil
-		}
-		if !strings.HasSuffix(path, ".jsonl.gz") && !strings.HasSuffix(path, ".jsonl.active") {
-			return fmt.Errorf("unexpected input file: %s", path)
 		}
 		stream, err := classify(root, path)
 		if err != nil {
