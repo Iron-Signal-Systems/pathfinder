@@ -16,6 +16,8 @@ time filtering:
 | health | 1,259 |
 | **Total** | **685,218** |
 
+The snapshot root may also contain the packaging file `.pathfinder-transfer.tar`. The importer explicitly skips **only that root-level transfer artifact**; it is not a sensor JSONL file and is excluded from the nine-file and 685,218-record counts. Unexpected files, including other `.tar` files, still fail closed. Do not delete or alter the transfer artifact to make validation work.
+
 The importer has three modes: `dry-run`, `import` and `sni`. Source files remain read-only. In `import` mode the files and validated JSONL batches are copied into separate private, fsync-backed immutable custody before any batch is indexed. The importer does **not** replace the authenticated live sensor receiver; it is a special operator-controlled historical backfill.
 
 ## Prerequisites and authority
