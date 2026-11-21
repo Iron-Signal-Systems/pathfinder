@@ -66,6 +66,13 @@ func null(s string) string {
 	}
 	return s
 }
+// Preserve required source sentinels rather than inserting NULL into mandatory text fields.
+func requiredText(s string) string {
+	if s == "" {
+		return "not_known"
+	}
+	return s
+}
 func num(v interface{}) string {
 	if v == nil {
 		return "\\N"
@@ -150,7 +157,7 @@ func (e *Evidence) Append(stream string, ctx Context, segmentOrdinal int64, raw 
 	id := ID("sensor-source-record-v1", ctx.BatchUUID, strconv.Itoa(ordinal))
 	order := strconv.Itoa(ordinal)
 	segOrd := int64s(segmentOrdinal)
-	common := []string{at, id, ctx.SensorUUID, ctx.BatchUUID, order, segOrd, int64s(observed.UnixNano()), null(base.TimestampSource)}
+	common := []string{at, id, ctx.SensorUUID, ctx.BatchUUID, order, segOrd, int64s(observed.UnixNano()), requiredText(base.TimestampSource)}
 	switch stream {
 	case "observations":
 		var r struct {
@@ -226,7 +233,7 @@ func (e *Evidence) Append(stream string, ctx Context, segmentOrdinal int64, raw 
 			return err
 		}
 		row := append(common,
-			null(o.Interface), strconv.Itoa(o.InterfaceIndex), null(c.Direction), strconv.Itoa(c.VLANID), null(c.Zone), null(c.NetworkName), null(c.SVI),
+			requiredText(o.Interface), strconv.Itoa(o.InterfaceIndex), null(c.Direction), strconv.Itoa(c.VLANID), null(c.Zone), null(c.NetworkName), null(c.SVI),
 			null(n.Family), null(n.Protocol), sip, dip, optionalPort(n.Protocol, o.Transport.SourcePort), optionalPort(n.Protocol, o.Transport.DestinationPort),
 			sm, dm, null(o.Ethernet.EtherType), strconv.Itoa(o.CapturedLength), null(o.DNS.MessageType), null(o.DNS.QueryName), null(o.DNS.QueryType),
 			b(o.TLS.ClientHelloObserved), null(o.TLS.SNI), null(o.ARP.Operation), b(c.KernelOffloadSuspected), string(raw))
@@ -360,7 +367,7 @@ func (e *Evidence) Append(stream string, ctx Context, segmentOrdinal int64, raw 
 			return fmt.Errorf("identity expected_interval_seconds missing/invalid")
 		}
 		snapshot := id
-		if err := e.add("sensor_identity_snapshot", snapshot, ctx.SensorUUID, ctx.BatchUUID, order, segOrd, at, int64s(observed.UnixNano()), int64s(r.ExpectedIntervalSeconds), null(r.Source), null(r.SourcePath), string(raw)); err != nil {
+		if err := e.add("sensor_identity_snapshot", snapshot, ctx.SensorUUID, ctx.BatchUUID, order, segOrd, at, int64s(observed.UnixNano()), int64s(r.ExpectedIntervalSeconds), requiredText(r.Source), requiredText(r.SourcePath), string(raw)); err != nil {
 			return err
 		}
 		for i, ep := range r.Endpoints {
