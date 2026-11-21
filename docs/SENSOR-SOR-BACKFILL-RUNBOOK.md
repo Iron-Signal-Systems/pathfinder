@@ -16,7 +16,7 @@ time filtering:
 | health | 1,259 |
 | **Total** | **685,218** |
 
-The snapshot root may also contain the packaging file `.pathfinder-transfer.tar`. The importer explicitly skips **only that root-level transfer artifact**; it is not a sensor JSONL file and is excluded from the nine-file and 685,218-record counts. Unexpected files, including other `.tar` files, still fail closed. Do not delete or alter the transfer artifact to make validation work.
+The snapshot root also contains transfer/manifest files such as `.pathfinder-transfer.tar` and `file-manifest.txt`. The importer discovers evidence **only** through the four known stream paths and the supported `.jsonl.gz`/`.jsonl.active` source-file formats. It logs every other regular metadata/transfer file as `SKIP_NON_SENSOR_FILE` rather than interpreting it as a sensor record. Unsupported sensor-looking files (including unrecognized `.jsonl` encodings), misplaced JSONL files, symlinks, and other non-regular objects still fail closed. The **nine-file** and **685,218-record** acceptance counts remain mandatory, so source records cannot be omitted silently. Do not delete, rename or modify the frozen archive.
 
 The importer has three modes: `dry-run`, `import` and `sni`. Source files remain read-only. In `import` mode the files and validated JSONL batches are copied into separate private, fsync-backed immutable custody before any batch is indexed. The importer does **not** replace the authenticated live sensor receiver; it is a special operator-controlled historical backfill.
 
