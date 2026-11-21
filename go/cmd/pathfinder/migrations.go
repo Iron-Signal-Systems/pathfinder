@@ -86,6 +86,11 @@ func loadMigrations() ([]migration, error) {
 			Path:    "migrations/0008-sensor-observation-sor.sql",
 			Version: 8,
 		},
+		{
+			Name:    "sensor-batch-replay-indexes",
+			Path:    "migrations/0009-sensor-batch-replay-indexes.sql",
+			Version: 9,
+		},
 	}
 
 	items := make([]migration, 0, len(paths))
