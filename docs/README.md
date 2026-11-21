@@ -38,6 +38,16 @@ threat source
   -> explainable query result
 ```
 
+## Current Sensor SoR Development
+
+The current development branch carries the source-backed sensor SoR schema, data dictionary, and acceptance queries:
+
+- [`DB-DATA-DICTIONARY.md`](DB-DATA-DICTIONARY.md) — every table and column across migrations 0001–0008
+- [`SENSOR-SOR-ACCEPTANCE.md`](SENSOR-SOR-ACCEPTANCE.md) — replay and historical-query test contracts
+- [`SENSOR-INGEST-DEVELOPMENT.md`](SENSOR-INGEST-DEVELOPMENT.md) — real UDM-Pro capture validation
+
+These files document **unreleased development**. Migration 0008 has not been executed against a live Pathfinder PostgreSQL instance.
+
 ## Semantic Foundation
 
 The Phase 0 contracts remain the semantic foundation unless a later committed reconciliation explicitly refines them.
