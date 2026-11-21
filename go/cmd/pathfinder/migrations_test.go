@@ -50,6 +50,11 @@ func TestLoadMigrationsPhase14Identity(t *testing.T) {
 			sha256:  "dd8bcb02b46aefc1cd30ce8846ffa5155624238ddf29828d42f4e93aaba62b1d",
 			version: 8,
 		},
+		{
+			name:    "sensor-batch-replay-indexes",
+			sha256:  "54991b3749312f4bc10ed2334e5a336d30a5c507cc1b2dde50df539f1018d370",
+			version: 9,
+		},
 	}
 
 	items, err := loadMigrations()
