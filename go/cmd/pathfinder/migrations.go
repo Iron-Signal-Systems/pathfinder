@@ -81,6 +81,11 @@ func loadMigrations() ([]migration, error) {
 			Path:    "migrations/0007-collector-checkpoint.sql",
 			Version: 7,
 		},
+		{
+			Name:    "sensor-observation-sor",
+			Path:    "migrations/0008-sensor-observation-sor.sql",
+			Version: 8,
+		},
 	}
 
 	items := make([]migration, 0, len(paths))
