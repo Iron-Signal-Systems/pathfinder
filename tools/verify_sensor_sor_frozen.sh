@@ -3,8 +3,8 @@
 # Run as jail root: frozen files include root:wheel 0640.
 set -eu
 umask 077
-root=$${1:-/mnt/udm-pro-20261120-0500EST}
-repo=$${PATHFINDER_REPO:-/home/jwood/pathfinder}
+root=${1:-/mnt/udm-pro-20261120-0500EST}
+repo=${PATHFINDER_REPO:-/home/jwood/pathfinder}
 python=/usr/local/bin/python3.12
 go=/usr/local/bin/go
 [ -x "$python" ] || { echo "Python3.12 unavailable" >&2; exit 1; }
