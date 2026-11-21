@@ -3,6 +3,8 @@ package sensorsor
 import (
 	"bytes"
 	"encoding/csv"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -111,5 +113,36 @@ func TestCSVAndAtomicMarker(t *testing.T) {
 	}
 	if len(row) != len(Schema["sensor_observation"]) {
 		t.Fatalf("CSV fields=%d want %d", len(row), len(Schema["sensor_observation"]))
+	}
+}
+
+func TestProjectionColumnsExistInMigration0008(t *testing.T) {
+	migration := filepath.Join("..", "..", "cmd", "pathfinder", "migrations", "0008-sensor-observation-sor.sql")
+	body, err := os.ReadFile(migration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := string(body)
+	for table, columns := range Schema {
+		start := strings.Index(sql, "CREATE TABLE pathfinder."+table+" (")
+		if start < 0 {
+			t.Errorf("migration 0008 missing projection table %s", table)
+			continue
+		}
+		block := sql[start:]
+		end := strings.Index(block, "\n);")
+		if end < 0 {
+			end = strings.Index(block, "\n) PARTITION BY RANGE (observed_at);")
+		}
+		if end < 0 {
+			t.Errorf("migration 0008 malformed projection table %s", table)
+			continue
+		}
+		block = block[:end]
+		for _, name := range columns {
+			if !strings.Contains(block, "\n    "+name+" ") {
+				t.Errorf("migration 0008 missing projected column %s.%s", table, name)
+			}
+		}
 	}
 }
