@@ -24,6 +24,7 @@ const (
 
 var (
 	ErrBatchConflict  = errors.New("sensor batch identity conflicts with existing custody")
+	ErrInvalidBatch = errors.New("invalid sensor batch")
 	ErrCustodyCorrupt = errors.New("existing sensor custody record is corrupt")
 	safeIdentity      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 )
@@ -91,10 +92,10 @@ func (store *Custody) Preserve(batch Batch) (CustodyReceipt, error) {
 		return receipt, fmt.Errorf("custody store not configured")
 	}
 	if !safeIdentity.MatchString(batch.SensorID) || !safeIdentity.MatchString(batch.BatchID) {
-		return receipt, fmt.Errorf("invalid sensor or batch identity")
+		return receipt, fmt.Errorf("%w: invalid sensor or batch identity", ErrInvalidBatch)
 	}
 	if len(batch.Payload) == 0 || len(batch.Payload) > MaxBatchBytes || batch.Payload[len(batch.Payload)-1] != '\n' {
-		return receipt, fmt.Errorf("invalid batch size or missing terminating newline")
+		return receipt, fmt.Errorf("%w: invalid batch size or missing terminating newline", ErrInvalidBatch)
 	}
 	count, err := validateBatch(batch)
 	if err != nil {
@@ -165,21 +166,21 @@ func validateBatch(batch Batch) (int, error) {
 	for scanner.Scan() {
 		count++
 		if count > MaxBatchRecords {
-			return 0, fmt.Errorf("batch exceeds record limit")
+			return 0, fmt.Errorf("%w: batch exceeds record limit", ErrInvalidBatch)
 		}
 		record, err := Validate(batch.Stream, scanner.Bytes(), batch.SensorID)
 		if err != nil {
 			return 0, fmt.Errorf("batch record %d: %w", count, err)
 		}
 		if record.SchemaVersion != batch.SchemaVersion {
-			return 0, fmt.Errorf("batch record %d: schema version mismatches envelope", count)
+			return 0, fmt.Errorf("%w: batch record %d: schema version mismatches envelope", ErrInvalidBatch, count)
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return 0, fmt.Errorf("scan batch: %w", err)
 	}
 	if count == 0 {
-		return 0, fmt.Errorf("empty batch")
+		return 0, fmt.Errorf("%w: empty batch", ErrInvalidBatch)
 	}
 	return count, nil
 }
