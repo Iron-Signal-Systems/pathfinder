@@ -215,6 +215,27 @@ func verifyExisting(path string, expected custodyEnvelope) error {
 	return nil
 }
 
+
+
+// ReceiptPath returns the existing on-disk immutable envelope location for a
+// verified custody receipt. It never trusts a caller-supplied path or sensor
+// filename; the name is derived from the same bounded identity as Preserve.
+func (store *Custody) ReceiptPath(receipt CustodyReceipt) (string, error) {
+	if store == nil || !safeIdentity.MatchString(receipt.SensorID) ||
+		!safeIdentity.MatchString(receipt.BatchID) {
+		return "", fmt.Errorf("%w: invalid custody receipt identity", ErrInvalidBatch)
+	}
+	switch receipt.Stream {
+	case Observations, Conntrack, Identity, Health:
+	default:
+		return "", fmt.Errorf("%w: invalid custody receipt stream", ErrInvalidBatch)
+	}
+	key := sha256.Sum256([]byte(custodyFormat + "\x00" +
+		receipt.SensorID + "\x00" + string(receipt.Stream) + "\x00" + receipt.BatchID))
+	path := filepath.Join(store.directory, hex.EncodeToString(key[:])+".json")
+	return path, nil
+}
+
 func syncDirectory(path string) error {
 	dir, err := os.Open(path)
 	if err != nil {
