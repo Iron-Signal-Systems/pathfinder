@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Iron-Signal-Systems/pathfinder/go/internal/sensoringest" // placeholder corrected below
+	"github.com/Iron-Signal-Systems/pathfinder/go/internal/sensoringest"
 	"github.com/Iron-Signal-Systems/pathfinder/go/internal/sensorsor"
 )
 
