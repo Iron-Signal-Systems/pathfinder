@@ -499,6 +499,8 @@ Current implementation direction:
 - [`ROADMAP.md`](ROADMAP.md)
 - [`docs/OPERATIONAL-INTELLIGENCE-ARCHITECTURE.md`](docs/OPERATIONAL-INTELLIGENCE-ARCHITECTURE.md)
 - [`docs/SENSOR-OBSERVATION-INGESTION.md`](docs/SENSOR-OBSERVATION-INGESTION.md)
+- [`docs/DB-DATA-DICTIONARY.md`](docs/DB-DATA-DICTIONARY.md) — source of record schema dictionary (development)
+- [`docs/SENSOR-SOR-ACCEPTANCE.md`](docs/SENSOR-SOR-ACCEPTANCE.md) — sensor SoR acceptance queries and replay gates
 - [`docs/CORRELATION-HISTORICAL-REPROCESSING.md`](docs/CORRELATION-HISTORICAL-REPROCESSING.md)
 
 Existing Phase 0 documents remain the semantic foundation unless a later committed reconciliation explicitly refines them. The reset changes implementation priority; it does not erase completed design history.
