@@ -27,6 +27,14 @@ The importer has three modes: `dry-run`, `import` and `sni`. Source files remain
 - A private absolute custody directory writable by the importer account; not on the nine read-only files. The importer creates `segments/` and `batches/` with permissions 0700, files 0600.
 - Do not run `install.sh` expecting an all-in-one deployment: the current repository installer intentionally refuses incomplete construction. Do not confuse this frozen-capture import with full product installation acceptance.
 
+## C220 read-only acceptance preflight (first required operator action)
+
+The repository includes `tools/verify_sensor_sor_frozen.sh` for the frozen archive. It reads the first observation sensor ID as a consistency key for **dry-run only**, then audits and projects all nine source files with the exact expected row count. This does not register a trusted sensor, contact PostgreSQL, write custody, or modify the archived source. Run in `dev-pathfinder` as jail root because some frozen source files are root:wheel 0640.
+
+```sh
+sh /home/jwood/pathfinder/tools/verify_sensor_sor_frozen.sh
+```
+
 ## Read-only dry-run first
 
 From `dev-pathfinder`'s checked-out `pathfinder/go` directory:
