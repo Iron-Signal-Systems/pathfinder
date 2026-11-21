@@ -9,6 +9,64 @@ Reference: [DB Data Dictionary](DB-DATA-DICTIONARY.md), migration
 The example range covers the UDM-Pro sample:
 2026-11-20 10:00:00Z inclusive through 10:55:00Z exclusive.
 
+## Mandatory full-archive ingest and PostgreSQL SNI acceptance
+
+**Operator requirement (2026-11-21):** Once sensor SoR indexing is ready,
+ingest **everything in the existing frozen UDM-Pro archive on C220**, then
+return **every distinct observed TLS SNI hostname by querying PostgreSQL**,
+not by reporting names read from JSONL or a sidecar file.
+
+Full existing nine-file archive (not merely the previously analyzed 55-minute
+slice):
+
+| Evidence stream | Full source-file rows |
+|---|---:|
+| observations | 569,671 |
+| conntrack | 111,842 |
+| identity snapshots | 2,446 |
+| health reports | 1,259 |
+| **TOTAL** | **685,218** |
+
+These are archive-source counts. The November 20 10:00Z–10:55Z window
+accounts for 599,984 of them. Preserve all nine original capture files
+and ingest every source record, including earlier identity/health history.
+Never silently apply the analysis-window filter to the actual import.
+
+Acceptance must prove:
+
+1. Each frozen source segment has the verified stored-file SHA-256 from the
+   original read-only audit. The import reads source bytes without modifying
+   the archive.
+2. Every source line is accounted for in exactly one SoR evidence row, with
+   its original stream, authenticated sensor association, batch identity,
+   ordinal and timestamp.
+3. The four total relational evidence-row counts equal the full archive
+   counts above; the earlier 55-minute filtered counts also reconcile.
+4. The same frozen archive is replayed. Row counts stay **identical**,
+   individual original records stay unchanged, and batch-index completion
+   markers remain stable. Conflicting batch identities fail closed.
+5. The distinct TLS SNI result is produced by executing
+   `go/queries/sensor_unique_sni.sql` against the **committed PostgreSQL
+   `pathfinder.sensor_observation.tls_sni` column**. No JSONL, JSONB-only,
+   Python aggregation or archive scan may substitute for this final query.
+6. The query returns all indexed names, not a top-N sample, and reports
+   the unique count along with the complete ordered values; the output is
+   captured as a test artifact. No claim of completion is made until an
+   actual SQL query against the imported database succeeds.
+
+Example after the database and migration are installed, using an
+appropriately authenticated database account (credentials supplied by
+the installation, not embedded in commands):
+
+```sh
+psql -X -v ON_ERROR_STOP=1 -d pathfinder \
+  -f go/queries/sensor_unique_sni.sql
+```
+
+**Current state:** This query is committed and the SoR schema exists in
+source control. The import/indexer, PostgreSQL execution and full-archive
+reconciliation have not yet passed acceptance.
+
 ## Baseline source record counts
 
 The original source rows must be queryable in the SoR with counts exactly:
