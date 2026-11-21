@@ -78,13 +78,27 @@ func (db database) registerLookup() (string, error) {
 	return result, nil
 }
 func (db database) checkMigration() error {
-	query := "SELECT CASE WHEN EXISTS (SELECT 1 FROM pathfinder.schema_migration WHERE version=8 AND sha256='dd8bcb02b46aefc1cd30ce8846ffa5155624238ddf29828d42f4e93aaba62b1d') THEN 'PASS' ELSE 'FAIL' END;"
+	// Runtime role deliberately has NO SELECT access to schema_migration.
+	// Inspect only the public schema catalog for the required source tables
+	// and indexed batch lookup paths; do not weaken migration authority.
+	const query = `SELECT CASE WHEN
+      to_regclass('pathfinder.sensor') IS NOT NULL AND
+      to_regclass('pathfinder.sensor_segment') IS NOT NULL AND
+      to_regclass('pathfinder.sensor_batch') IS NOT NULL AND
+      to_regclass('pathfinder.sensor_batch_index_completion') IS NOT NULL AND
+      to_regclass('pathfinder.sensor_observation') IS NOT NULL AND
+      to_regclass('pathfinder.sensor_conntrack_event') IS NOT NULL AND
+      to_regclass('pathfinder.sensor_identity_snapshot') IS NOT NULL AND
+      to_regclass('pathfinder.sensor_health') IS NOT NULL AND
+      to_regclass('pathfinder.sensor_observation_batch_lookup_idx') IS NOT NULL AND
+      to_regclass('pathfinder.sensor_conntrack_batch_lookup_idx') IS NOT NULL
+      THEN 'PASS' ELSE 'FAIL' END;`
 	got, err := db.query(query)
 	if err != nil {
 		return err
 	}
 	if got != "PASS" {
-		return fmt.Errorf("required migration 0008 checksum not present in database")
+		return fmt.Errorf("required sensor SoR schema or batch indexes are missing (migrations 0008/0009)")
 	}
 	return nil
 }
