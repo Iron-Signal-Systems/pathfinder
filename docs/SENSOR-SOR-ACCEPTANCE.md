@@ -1,5 +1,7 @@
 # Pathfinder Sensor SoR — query and acceptance contracts
 
+See [the frozen-archive backfill runbook](SENSOR-SOR-BACKFILL-RUNBOOK.md) for the operator-executable process, custody configuration, database role boundaries, exact full-file record counts, and PostgreSQL SNI output.
+
 **Development-only design and query examples.** These SQL statements are
 repo-owned acceptance targets; no live PostgreSQL execution is claimed.
 
