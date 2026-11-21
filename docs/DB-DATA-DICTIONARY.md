@@ -1,6 +1,6 @@
 # Pathfinder SoR Database Data Dictionary
 
-**Scope:** All database tables in embedded SQL migrations 0001–0008, with sensor SoR tables created by migration 0008. **Status: DEVELOPMENT SCHEMA ONLY**; no live Pathfinder PostgreSQL instance has been created or validated on the C220.
+**Scope:** All database tables in embedded SQL migrations 0001–0009, with sensor SoR tables created by migration 0008. **Status: DEVELOPMENT SCHEMA ONLY**; no live Pathfinder PostgreSQL instance has been created or validated on the C220.
 
 **Authoritative source:** `go/cmd/pathfinder/migrations/*.sql`, registered by `go/cmd/pathfinder/migrations.go`. This dictionary documents intended types, nullability, purpose and sensor field mappings; physical DDL is the final authority.
 
@@ -510,3 +510,7 @@ FK from derived connection to the exact original conntrack event.
 The large `sensor_observation` and `sensor_conntrack_event` tables use daily range partitions by observed_at; migration 0008 provisions migration date -7 through +14 days and fallback default partitions. Maintaining future partitions and draining default partitions is an **outstanding operational requirement**. BRIN on time; B-trees on source/destination IP, sensor/time, tuple candidates, DNS names, SNI and conntrack identity. Measure sustained ingestion costs against the complete 599,984-record frozen capture before selecting final index, retention, vacuum and WAL settings.
 
 **Captured validation sample:** 554,863 packet observations, 45,009 conntrack events, 56 endpoint identity snapshots, 56 health reports, 846.03 MiB uncompressed JSONL in 55 minutes (2026-11-20 10:00:00–10:55:00Z). SNAT events: 8,355/8,391 had LAN/WAN tuple evidence somewhere in the window, 7,923/8,391 within two minutes. These are evidence counts, not guaranteed distinct connection lifetimes.
+
+## Forward-only migration 0009 — Replay lookup performance
+
+Migration `0009-sensor-batch-replay-indexes.sql` adds time-partition-compatible `(batch_id, observed_at)` indexes on `sensor_observation` and `sensor_conntrack_event`. No table or column definitions change; the dictionary remains 26 tables and 286 columns. The indexes support transactional batch completeness checks and exact frozen-archive reconciliation.
