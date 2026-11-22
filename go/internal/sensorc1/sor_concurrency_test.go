@@ -13,6 +13,7 @@ import (
  "time"
 
  "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensorsor"
+ "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensoringest"
 )
 
 // SQL operations are individually thread-safe, but intentionally NOT atomic
