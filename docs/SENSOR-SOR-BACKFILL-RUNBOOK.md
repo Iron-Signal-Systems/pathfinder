@@ -22,7 +22,7 @@ The importer has three modes: `dry-run`, `import` and `sni`. Source files remain
 
 ## Prerequisites and authority
 
-- PostgreSQL 18 database with Pathfinder roles, schema and **migrations 0001–0009** installed. The current C220 `pathfinder-sor` jail was observed without PostgreSQL installed, so **it cannot accept this import yet**.
+- PostgreSQL 18 database with Pathfinder roles, schema and **migrations 0001–0009** installed. On C220, PostgreSQL **18.6 is now initialized and running** in `pathfinder-sor` at `172.20.10.12:5432`; roles, schema, migrations and historical import remain outstanding until the local-only stages below pass.
 - The development jail has Go 1.26 and Python 3.12. The `psql` client must be accessible where the importer runs, and DB auth supplied via protected `.pgpass` / `PGPASSFILE` or an equivalent approved mechanism. Do not put passwords in CLI arguments or Git.
 - `pathfinder_app` can INSERT and SELECT sensor evidence but **cannot register sensors or run DDL**. Sensor registration is explicitly performed by the migrator with `SET ROLE pathfinder_owner`.
 - The operator knows the sensor key. It must **match exactly** the `sensor_id` from the packet observations. The other three streams have no embedded sensor ID; provenance is attributed through this trusted, operator-scoped frozen archive.
