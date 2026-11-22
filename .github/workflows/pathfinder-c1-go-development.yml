@@ -6,6 +6,8 @@ on:
     paths:
       - 'go/internal/sensorc1/**'
       - 'go/cmd/pathfinder-c1-frozen-check/**'
+      - 'go/cmd/pathfinder-c1-ingest-dev/**'
+      - 'go/cmd/pathfinder-c1-sor-dev/**'
       - '.github/workflows/pathfinder-c1-go-development.yml'
   pull_request:
     branches:
@@ -13,6 +15,8 @@ on:
     paths:
       - 'go/internal/sensorc1/**'
       - 'go/cmd/pathfinder-c1-frozen-check/**'
+      - 'go/cmd/pathfinder-c1-ingest-dev/**'
+      - 'go/cmd/pathfinder-c1-sor-dev/**'
 permissions:
   contents: read
 jobs:
@@ -41,6 +45,7 @@ jobs:
         run: |
           GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/pathfinder-c1-frozen-check
           GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build ./internal/sensorc1
+          GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build -tags pathfinder_c1_dev ./cmd/pathfinder-c1-ingest-dev ./cmd/pathfinder-c1-sor-dev
 
   postgres18-clone:
     name: PostgreSQL 18 disposable clone integration (NO C220 access)
