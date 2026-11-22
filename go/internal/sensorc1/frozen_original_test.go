@@ -27,7 +27,7 @@ func TestIndependentFrozenSourceReaderNeverTrustsRAMBatchIdentity(t *testing.T){
  if err!=nil{t.Fatal(err)}
  if original.Input.BatchUUID!=prepared.BatchUUID ||
     original.SegmentSHA256=="" ||
-    original.SegmentOrdinalStart==0 || !strings.HasPrefix(original.BatchCustodyReference,"frozen-replay:") {
+    original.Input.SegmentOrdinalStart==0 || !strings.HasPrefix(original.BatchCustodyReference,"frozen-replay:") {
   t.Fatalf("missing independently sourced original evidence: %+v",original)
  }
  if string(original.Input.Payload)!=string(raw){t.Fatal("original bytes changed")}
