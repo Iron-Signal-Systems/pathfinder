@@ -41,6 +41,7 @@ func run()error{
  key:=flags.String("server-key","","dedicated SoR TLS private key")
  trust:=flags.String("client-ca","","pinned ingest-client issuing CA")
  clientDNS:=flags.String("ingest-client-dns","","exact permitted ingest client DNS SAN")
+ maxCacheMiB:=flags.Int64("max-original-cache-mib",4096,"maximum frozen original payload bytes retained in MiB, 1-4096")
  flags.Parse(os.Args[1:])
  if flags.NArg()!=0{return errors.New("unexpected positional arguments")}
  host,_,err:=net.SplitHostPort(*listen)
@@ -51,12 +52,13 @@ func run()error{
     *pgRole==""||*cert==""||*key==""||*trust==""||*clientDNS==""{
   return errors.New("SoR original custody, local SQL, RAM and mTLS options are mandatory")
  }
+ if *maxCacheMiB<1||*maxCacheMiB>4096{return errors.New("source-cache-MiB must be 1..4096")}
  if err:=sensorc1.RequireFreeBSDJailRAM(*ram,true);err!=nil{return err}
  approval:=os.Getenv("PATHFINDER_C1_SQL_CLONE_APPROVED")
  if approval!=sensorc1.CloneWriteAuthorization{
   return errors.New("C1 development SoR clone write authorization absent; do not start")
  }
- original,err:=sensorc1.NewFrozenOriginalReader(*archive,*sensor,*uuid)
+ original,err:=sensorc1.NewFrozenOriginalReaderWithLimit(*archive,*sensor,*uuid,*maxCacheMiB<<20)
  if err!=nil{return fmt.Errorf("independent frozen original source: %w",err)}
  postgres,err:=sensorc1.NewPGCloneExecutor(sensorc1.PGCloneConfig{
   PSQLBinary:*psql,SocketDirectory:*pgSocket,Database:sensorc1.CloneDatabase,
@@ -65,6 +67,8 @@ func run()error{
  if err!=nil{return err}
  ctx,stop:=signal.NotifyContext(context.Background(),syscall.SIGTERM,syscall.SIGINT)
  defer stop()
+ batches,sourceBytes,limitBytes:=original.CachedSourceStats()
+ fmt.Printf("PATHFINDER_C1_SOR_SOURCE_CACHE batches=%d original_source_bytes=%d budget_bytes=%d authoritative=false\n",batches,sourceBytes,limitBytes)
  if err:=postgres.VerifyCloneTarget(ctx);err!=nil{return err}
  processor:=&sensorc1.SoRProcessor{ReadRoot:*ram,Originals:original,SQL:postgres}
  controller,err:=sensorc1.NewC1ControlServer(processor,*clientDNS)
