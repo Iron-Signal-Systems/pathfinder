@@ -19,6 +19,8 @@ import (
 type FrozenOriginalReader struct {
  sensorID,sensorUUID string
  entries map[string]frozenOriginal
+ payloadBytes int64
+ maxPayloadBytes int64
 }
 type frozenOriginal struct {
  original OriginalBatch
@@ -26,17 +28,30 @@ type frozenOriginal struct {
  fileInfo os.FileInfo
 }
 
-// NewFrozenOriginalReader consumes the archive once into bounded per-batch
-// source blobs in PROCESS RAM. This is a development convenience: no durable
-// copy is created and no receiver/source/archive/SQL files are modified.
-// The original archive must be immutable/read-only for the entire test.
+// DefaultFrozenCacheBytes limits raw JSON source bytes held by each dev SoR
+// or verifier process. This is a payload cap, NOT a total RSS ceiling.
+const DefaultFrozenCacheBytes int64 = 4 << 30
+
+// NewFrozenOriginalReader is the default bounded source cache for the
+// development-only replay. No persistent sidecar or database is created.
 func NewFrozenOriginalReader(root,sensorID,sensorUUID string)(*FrozenOriginalReader,error){
+ return NewFrozenOriginalReaderWithLimit(root,sensorID,sensorUUID,DefaultFrozenCacheBytes)
+}
+
+// NewFrozenOriginalReaderWithLimit is suitable for deterministic limit tests
+// and explicit operational memory budgets. The source remains authoritative;
+// cached original bytes are disposable and must never authorize a receiver ACK.
+func NewFrozenOriginalReaderWithLimit(root,sensorID,sensorUUID string,maxSourceBytes int64)(*FrozenOriginalReader,error){
+ if maxSourceBytes<1 || maxSourceBytes>DefaultFrozenCacheBytes{
+  return nil,errors.New("C1 frozen SoR: positive cache limit must be <= 4 GiB")
+ }
  if !filepath.IsAbs(root)||!safeID.MatchString(sensorID)||!uuidPattern.MatchString(sensorUUID){
   return nil,errors.New("C1 frozen SoR: absolute root and trusted registered sensor identity required")
  }
  segments,err:=collectFrozen(root,sensorID)
  if err!=nil{return nil,err}
- out:=&FrozenOriginalReader{sensorID:sensorID,sensorUUID:sensorUUID,entries:map[string]frozenOriginal{}}
+ out:=&FrozenOriginalReader{sensorID:sensorID,sensorUUID:sensorUUID,entries:map[string]frozenOriginal{},
+  maxPayloadBytes:maxSourceBytes}
  for _,seg:=range segments{
   info,err:=os.Stat(seg.path)
   if err!=nil{return nil,err}
@@ -52,6 +67,10 @@ func NewFrozenOriginalReader(root,sensorID,sensorUUID string)(*FrozenOriginalRea
     if name=="raw_record"{idx=i;break}
    }
    if idx<0{return errors.New("C1 frozen SoR: no raw source column")}
+   if int64(p.PayloadBytes)>out.maxPayloadBytes-out.payloadBytes {
+    return fmt.Errorf("C1 frozen SoR: source payload cache budget exceeded at %s: used=%d next=%d limit=%d",
+     seg.path,out.payloadBytes,p.PayloadBytes,out.maxPayloadBytes)
+   }
    payload:=make([]byte,0,p.PayloadBytes)
    for _,row:=range table.Rows{
     if idx>=len(row){return errors.New("C1 frozen SoR: corrupt original row")}
@@ -85,6 +104,7 @@ func NewFrozenOriginalReader(root,sensorID,sensorUUID string)(*FrozenOriginalRea
     return fmt.Errorf("C1 frozen SoR: duplicate original batch ID %s",p.BatchUUID)
    }
    out.entries[p.BatchUUID]=frozenOriginal{original:original,path:seg.path,fileInfo:info}
+   out.payloadBytes+=int64(len(input.Payload))
    batchKeys=append(batchKeys,p.BatchUUID)
    return nil
   }
@@ -120,3 +140,10 @@ func(r *FrozenOriginalReader)OpenOriginal(ctx context.Context,p Prepared)(Origin
  return original,nil
 }
 
+
+// CachedSourceStats reports only source-payload retention (not process RSS,
+// transient projector allocations, or Go map overhead). No mutable data leaks.
+func(r *FrozenOriginalReader)CachedSourceStats()(batches int,sourceBytes int64,limitBytes int64){
+ if r==nil{return 0,0,0}
+ return len(r.entries),r.payloadBytes,r.maxPayloadBytes
+}
