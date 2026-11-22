@@ -1,223 +1,54 @@
-# Pathfinder C1 — C220 native shared-RAM and two-jail acceptance
+# Pathfinder C1 — C220 native duplex RAM mount acceptance
 
-**Status:** STAGED DEVELOPMENT PROCEDURE. Nothing in this document has
-been performed on C220. The populated Pathfinder SoR, UDM-Pro, FI, and
-planned receiver remain out of scope.
+**Development-only, not authorization to modify live C220 services, populated SQL, receiver or FI.** New native IPC uses **two independent host tmpfs stores**, four nullfs views, and NO ingest↔SoR TCP. See [TCP-free design](PATHFINDER-C1-TCP-FREE-TMPFS-DESIGN-20261122.md).
 
-**Branch:** `dev/c1-ingest-sor-20261122`
-**Gate:** Host/jail mount acceptance must pass before starting either C1
-development SQL or verifier service. This procedure does **not** create
-mounts, service accounts, SQL clones, certificates, or startup services.
+## Required host mount model
 
-## Goal
+| Host backing source | pathfinder-ingest jail view | pathfinder-sor jail view |
+| --- | --- | --- |
+| dedicated bounded work tmpfs, noexec,nosuid | **RW nullfs** | **RO nullfs** |
+| dedicated bounded commit-receipt tmpfs, noexec,nosuid | **RO nullfs** | **RW nullfs** |
 
-Prove the same volatile host tmpfs directory is visible as an ingest-writable
-nullfs inside `pathfinder-ingest` and as SoR-read-only nullfs inside
-`pathfinder-sor`. Prove **two distinct unprivileged service accounts**
-can exchange a real `0640` object through an operator-defined private
-non-root shared group. No world-readable RAM and no writable SoR view.
+Two different **non-root UIDs** own the corresponding writable tmpfs roots; both are members of the same dedicated non-root Pathfinder GID. Each tmpfs root is 0750 and objects are 0640. A wrong-direction writable nullfs is a STOP condition. Never recycle FI's existing /var/run/fi-c1-handoff or identity. Source UDM-Pro JSONL custody is independent, read-only and not copied into either RAM store. Work and receipts deliberately vanish on reboot.
 
-The receiver is **not** involved. The future receiver owns durable signed
-custody on `cold`, but there is no receiver implementation in this stage.
+## Read-only host preflight input contract
 
-## Inputs to record before any command
+After explicitly reviewing host jail roots, jail.conf.d mount configuration, unused UIDs/GIDs, capacity, and creating the **two mounts and four mappings under separate operator authorization**, set the following variables to *real* paths and account names. Do not use assumed numeric IDs or generic placeholders:
 
-All values are operator-verified and must **not** be guessed from FI paths
-or reused from a different jail:
+- PF_C1_HOST_WORK: mounted work tmpfs on FreeBSD host
+- PF_C1_HOST_RECEIPTS: separately mounted receipt tmpfs on host
+- PF_C1_INGEST_WORK: host-side path of ingest RW nullfs mount
+- PF_C1_SOR_WORK: host-side path of SoR RO nullfs mount
+- PF_C1_SOR_RECEIPTS: host-side path of SoR RW nullfs mount
+- PF_C1_INGEST_RECEIPTS: host-side path of ingest RO nullfs mount
+- PF_C1_JAIL_WORK_PATH: work mount path inside both jails
+- PF_C1_JAIL_RECEIPT_PATH: receipt mount path inside both jails
+- PF_C1_SHARED_GID: verified dedicated nonzero GID shared by both jails
+- PF_C1_INGEST_USER: verified non-root ingest service identity
+- PF_C1_SOR_USER: verified distinct non-root SoR service identity
 
-| Input | Source / requirement |
-| --- | --- |
-| `PF_C1_HOST_RAM` | Actual dedicated **mounted host tmpfs** absolute path |
-| `PF_C1_INGEST_RAM` | Absolute host-side path of ingest-jail nullfs mount |
-| `PF_C1_SOR_RAM` | Absolute host-side path of SoR-jail nullfs mount |
-| `PF_C1_JAIL_RAM_PATH` | Absolute mounted path inside both named jails |
-| `PF_C1_SHARED_GID` | Dedicated non-zero group number, shared by both service users |
-| `PF_C1_INGEST_USER` | Distinct non-root user inside `pathfinder-ingest` |
-| `PF_C1_SOR_USER` | Distinct non-root user inside `pathfinder-sor` |
-| staged binary paths | Explicit paths to an operator-built `pathfinder-c1-ram-probe-dev` in each jail |
-| source archive + sensor identity | Frozen archive, actual original `sensor_id`, registered UUID; required only for later SQL test |
-| `PF_C1_PINNED_MANIFEST_SHA256` | Exact 64-character lowercase aggregate fingerprint emitted by the read-only baseline below; required for native ingest and independent verifier B |
-| clone + credentials | Separately isolated PostgreSQL 18 `pathfinder_c1_clone`, local socket, SoR SQL role, B SELECT-only role; required only for later SQL test |
+Run **from C220 host root**:
 
-The host tmpfs must be **bounded** in size and host memory use. Its
-directory must be traversable by the SoR reader, writable by the ingest
-writer, and not accessible to unrelated users. The published test and
-bundle files are exactly `0640`; if the cross-jail group cannot be
-assigned, the publisher must fail, not fall back to `0644`.
-ZFS is NOT the RAM handoff. A tmpfs loss is intentional and recoverable
-from original source custody plus PostgreSQL commit state.
+    sh /ACTUAL/VERIFIED/STAGE/tools/pathfinder_c1_c220_preflight.sh
 
-## Gate 1 — read-only host inspection
+Expected: PATHFINDER_C1_DUPLEX_RAM_PREFLIGHT_PASS. Preflight only reads mounts, users and access flags. It refuses missing mount, wrong underlying host tmpfs, incorrect RO/RW, missing noexec/nosuid, missing group, wrong ownership or cross-project FI paths. Do not mount or change accounts in response to a failure without inspecting the exact reported condition.
 
-The operator may run this from the **FreeBSD host**, after setting the
-exact verified variables above:
+## Actual cross-jail handoff proof
 
-```
-sh tools/pathfinder_c1_c220_preflight.sh
-```
+With matching CI-built development probe binaries staged into both runtime jails, run a one-file test as the **ingest service identity**:
 
-It must report `PATHFINDER_C1_C220_RAM_PREFLIGHT_PASS` only when:
+    pathfinder-c1-ram-probe-dev -operation publish -ram-dir "$PF_C1_JAIL_WORK_PATH" -shared-gid "$PF_C1_SHARED_GID"
 
-- the host source is actually mounted as `tmpfs`;
-- both named jails are in `jail_list` and already running;
-- the two mounted `nullfs` views point to exactly that source;
-- ingest is RW, SoR is RO;
-- the host source directory has `PF_C1_SHARED_GID`;
-- the two unprivileged service accounts are distinct, both carry the
-  shared group, ingest can write and SoR can read its jail-visible RAM path.
+Pass the exact emitted name and SHA-256 to the **separate SoR service identity**, using its RO work view:
 
-The script performs no writes or mount actions. **STOP** if it does not
-pass, if any paths differ, or if the original FI jails are accidentally
-selected. Do not create/adjust mounts as a side effect of this preflight.
+    pathfinder-c1-ram-probe-dev -operation read -ram-dir "$PF_C1_JAIL_WORK_PATH" -shared-gid "$PF_C1_SHARED_GID" -name NAME -sha256 SHA256
 
-## Gate 2 — actual 64-byte cross-jail proof
+Require PATHFINDER_C1_RAM_PROBE_READ_PASS and demonstrate the SoR cannot create/delete files on the read-only work mount. Clean up the exact disposable probe **only from ingest** with -operation remove, preserving all non-probe files.
 
-Compile the separately tagged FreeBSD development probe from the current
-branch, then stage the binary in **each** named jail by an independently
-reviewed procedure:
+A complementary SoR→ingest receipt proof is required on the second pair of nullfs views: SoR is the sole receipt publisher, ingest is the read-only receiver. Actual native service SQL commit receipts must match the exact work file hash, family, batch UUID list and row count. Never treat the appearance of an ACK file as receipt authenticity without OS writer isolation and full field checks.
 
-```
-cd go
-go build -tags pathfinder_c1_dev \
-  -o /EXPLICIT/DEV/BUILD/DIRECTORY/pathfinder-c1-ram-probe-dev \
-  ./cmd/pathfinder-c1-ram-probe-dev
-```
+## Further gates
 
-Do not run as root. After Gate 1 passes, publish from the actual ingest
-service identity (replace the absolute binary path with the verified
-jail-visible location):
+Before native C1 replay, establish independent read-only original source access to ingest, SoR and verifier B; actual frozen archive manifest and 685,218 records; approved isolated PostgreSQL 18 pathfinder_c1_clone, clone-only SQL role and SELECT-only verifier role. Run SQL only from SoR on its local Unix socket. Verify no C1 TCP listener. Reconcile reboot/startup and loss of either tmpfs; replay source from immutable original and reconcile SQL completion markers, not from RAM. The original populated SoR and FI remain unchanged. Independent verifier B runs asynchronously.
 
-```
-jexec -U "$PF_C1_INGEST_USER" pathfinder-ingest \
-  /ABSOLUTE/STAGED/DEV/BINARY/pathfinder-c1-ram-probe-dev \
-  -operation publish -ram-dir "$PF_C1_JAIL_RAM_PATH" \
-  -shared-gid "$PF_C1_SHARED_GID"
-```
-
-Record exactly the printed `name` and `sha256`. Then verify with the
-distinct non-root SoR service identity:
-
-```
-jexec -U "$PF_C1_SOR_USER" pathfinder-sor \
-  /ABSOLUTE/STAGED/DEV/BINARY/pathfinder-c1-ram-probe-dev \
-  -operation read -ram-dir "$PF_C1_JAIL_RAM_PATH" \
-  -shared-gid "$PF_C1_SHARED_GID" \
-  -name "NAME_FROM_PUBLISH" -sha256 "SHA256_FROM_PUBLISH"
-```
-
-Only an exact `PATHFINDER_C1_RAM_PROBE_READ_PASS` establishes practical
-cross-jail group readability. SoR must be unable to modify or remove the
-probe because its entire mount is read-only, independently of file mode.
-Return to ingest to clean up **only the verified disposable probe**:
-
-```
-jexec -U "$PF_C1_INGEST_USER" pathfinder-ingest \
-  /ABSOLUTE/STAGED/DEV/BINARY/pathfinder-c1-ram-probe-dev \
-  -operation remove -ram-dir "$PF_C1_JAIL_RAM_PATH" \
-  -shared-gid "$PF_C1_SHARED_GID" \
-  -name "NAME_FROM_PUBLISH" -sha256 "SHA256_FROM_PUBLISH"
-```
-
-Expected: `PATHFINDER_C1_RAM_PROBE_REMOVED`. The read operation never
-modifies the probe. No PostgreSQL, receiver, or sensor evidence is read
-or written during this gate.
-
-**STOP** on any group, nullfs, permission, digest, size, cleanup or
-process-identity failure. A CI pass is not a substitute for Gate 2.
-
-## Gate 3 — isolated SQL and native FreeBSD (not yet performed)
-
-Before starting `pathfinder-c1-sor-dev`, independently verify:
-
-1. Source JSONL is mounted read-only and is independently readable to
-   the SoR and verifier identities; its original content hashes match.
-2. The local Unix socket targets a proven **isolated**
-   `pathfinder_c1_clone` database, never the populated `pathfinder`
-   database. Clone creation is a separate reviewed activity.
-3. The SoR SQL role is limited to the clone; verifier B uses a
-   **different SELECT-only** PostgreSQL role.
-4. The mTLS certificates and private CA are provisioned for the intended
-   pathfinder-ingest and pathfinder-sor identities and names only.
-5. The dev ingest program is configured with the verified
-   `-ram-shared-gid` value and exact source counts.
-6. Native startup and service shutdown order, cancellation, backpressure,
-   replay after lost SQL ACK, and clean restart have been proven. No
-   existing FreeBSD `rc.conf`, `jail.conf` or jail mount plan is changed
-   by this branch.
-
-**Only after these checks:** run development-only replay through both
-FreeBSD processes, then independent verifier B in parallel on the same
-SQL clone. A four-record CI fixture is not full-history acceptance.
-
-## Gate 4 — full historical source reconciliation (not yet performed)
-
-The previously imported frozen archive includes **9 files and 685,218
-records**. For acceptance of *that original archive only*, require:
-- file SHA-256, registered sensor UUID, exact source total and each of
-  four stream counts match the frozen evidence;
-- deterministic batch IDs, all source ordinals, typed parent and
-  child rows match independent B;
-- an identical replay creates no duplicate relational records;
-- interruption tests include SQL rollback, lost acknowledgment and
-  volatile RAM loss with reprocessing from original source;
-- record rate, CPU, RSS, WAL, filesystem I/O and SQL overhead are measured;
-- original populated SoR is unchanged before, during and after.
-
-The development SoR and verifier original-source readers each cache raw
-batch payloads in process memory, with an independent **4 GiB maximum
-cached-payload budget** (default). This is not an RSS limit: runtime maps,
-temporary typed projectors, and decompression buffers consume additional
-memory. The FreeBSD SoR and verifier binaries accept
-`-max-original-cache-mib` (1–4096) and fail without starting if the audited
-archive exceeds that payload allowance. The executables print their
-cached original batch count and payload bytes at startup.
-
-Before any SQL handoff, the native ingest program now runs
-`AuditFrozen`, rejecting missing files, incorrect record counts, an
-absent one of the four stream families, malformed original JSON, or
-unsuccessful file SHA-256 validation. It then re-audits the original files
-during `ReplayFrozen`; no incomplete capture is silently accepted as a
-complete historical replay.
-
-For baseline **read-only** source measurements, run the existing
-`pathfinder-c1-frozen-check` binary (no SQL access) with the operator's
-verified original sensor UUID and archive path:
-
-```sh
-go run ./cmd/pathfinder-c1-frozen-check \
-  -root /VERIFIED/READONLY/FROZEN/UDM/ARCHIVE \
-  -sensor-id REGISTERED_SENSOR_ID \
-  -sensor-uuid REGISTERED_SENSOR_UUID \
-  -expect-files 9 \
-  -expect-records 685218
-```
-
-It reports per-stream counts, exact stored-file SHA-256 digests, a stable
-whole-archive manifest fingerprint, elapsed time, throughput, CPU time,
-Go heap allocation snapshot and cumulative Go allocation volume. These
-are **not** PostgreSQL commit-rate or total peak-RSS measurements.
-The line `FROZEN_SOURCE_MANIFEST_SHA256 value=...` establishes the **exact
-original capture identity**. Record that output as the operator-approved
-`PF_C1_PINNED_MANIFEST_SHA256`. Both native `pathfinder-c1-ingest-dev` and
-`pathfinder-c1-verifier-dev` now require
-`-expect-manifest-sha256 "$PF_C1_PINNED_MANIFEST_SHA256"` along with the
-verified source path, sensor identity, and file/record totals. They must
-abort before starting SQL work if the hash differs, even when the archive
-contains the same number of files and records.
-
-The original 685,218-record archive must be present to record real values;
-none are inferred from CI test fixtures.
-
-Record per-process peak RSS externally during the native full run,
-including SQL writers and both independent source readers. Do **not**
-assume the four-stream CI fixture proves acceptable C220 memory usage.
-
-## Completion status
-
-As of the branch stage: GitHub CI covers contract/race/vet tests,
-FreeBSD cross-builds, real PostgreSQL 18 clone faults and a loopback
-mTLS mini-end-to-end flow. **Gate 1–4 have not been executed on C220.**
-
-This checklist is not a release approval or permission to enable live
-sensor ingestion, receiver acknowledgments, autonomous deletion, or
-canonical SoR promotion.
+**Status: C220 discovery completed. Duplex mounts, account/group setup, dual-direction native proof, clone isolation and full replay are NOT yet accepted.**

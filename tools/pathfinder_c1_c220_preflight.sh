@@ -1,149 +1,95 @@
 #!/bin/sh
-# Pathfinder C1 C220 FreeBSD host preflight — READ-ONLY.
-# This script never mounts, creates, edits, restarts or starts anything.
-# Run from FreeBSD HOST after an independently reviewed host tmpfs/nullfs setup.
-# Required paths are explicit: never guess C220 jail roots.
+# Read-only C220 host audit for TCP-FREE Pathfinder C1 duplex tmpfs.
+# No mounts, users, binaries, services, credentials or SQL are changed.
 set -eu
 umask 077
+fail(){ printf 'PATHFINDER_C1_DUPLEX_PREFLIGHT_FAIL %s\n' "$*" >&2; exit 1; }
+: "${PF_C1_HOST_WORK:?host work tmpfs path required}"
+: "${PF_C1_HOST_RECEIPTS:?host SQL receipt tmpfs path required}"
+: "${PF_C1_INGEST_WORK:?host-side ingest RW work nullfs target required}"
+: "${PF_C1_SOR_WORK:?host-side SoR RO work nullfs target required}"
+: "${PF_C1_SOR_RECEIPTS:?host-side SoR RW receipt nullfs target required}"
+: "${PF_C1_INGEST_RECEIPTS:?host-side ingest RO receipt nullfs target required}"
+: "${PF_C1_JAIL_WORK_PATH:?inside-jail work mount path required}"
+: "${PF_C1_JAIL_RECEIPT_PATH:?inside-jail receipt mount path required}"
+: "${PF_C1_SHARED_GID:?dedicated shared group numeric GID required}"
+: "${PF_C1_INGEST_USER:?dedicated ingest service username required}"
+: "${PF_C1_SOR_USER:?dedicated SoR service username required}"
 
-die() {
-    printf 'PATHFINDER_C1_C220_PREFLIGHT_FAIL %s\n' "$*" >&2
-    exit 1
-}
-need_path() {
-    name=$1
-    path=$2
-    case "$path" in
-        /*) ;;
-        *) die "$name must be an absolute path" ;;
-    esac
-    [ -d "$path" ] || die "$name missing directory $path"
-    [ ! -L "$path" ] || die "$name may not be a symlink"
-}
-
-: "${PF_C1_HOST_RAM:?PF_C1_HOST_RAM absolute mounted host tmpfs path required}"
-: "${PF_C1_INGEST_RAM:?PF_C1_INGEST_RAM absolute ingest jail root mountpoint required}"
-: "${PF_C1_SOR_RAM:?PF_C1_SOR_RAM absolute SoR jail root mountpoint required}"
-: "${PF_C1_JAIL_RAM_PATH:?PF_C1_JAIL_RAM_PATH absolute path visible inside both jails required}"
-: "${PF_C1_SHARED_GID:?PF_C1_SHARED_GID dedicated RAM group integer required}"
-: "${PF_C1_INGEST_USER:?PF_C1_INGEST_USER must identify the unprivileged ingest service account}"
-: "${PF_C1_SOR_USER:?PF_C1_SOR_USER must identify the unprivileged SoR service account}"
-
-
-need_path HOST_RAM "$PF_C1_HOST_RAM"
-need_path INGEST_RAM "$PF_C1_INGEST_RAM"
-need_path SOR_RAM "$PF_C1_SOR_RAM"
-case "$PF_C1_JAIL_RAM_PATH" in
-    /*) ;;
-    *) die "jail-visible RAM path must be absolute" ;;
-esac
-case "$PF_C1_SHARED_GID" in
-    *[!0-9]* | '') die "shared RAM GID must be a positive integer" ;;
-    0) die "shared RAM group cannot be root/wheel" ;;
-esac
-for checked_path in "$PF_C1_HOST_RAM" "$PF_C1_INGEST_RAM" "$PF_C1_SOR_RAM" "$PF_C1_JAIL_RAM_PATH"; do
-    case "$checked_path" in
-        *' '* | *"	"*) die "preflight mount paths cannot contain whitespace" ;;
-    esac
+[ "$(uname -s)" = FreeBSD ] || fail "FreeBSD host required"
+[ "$(id -u)" -eq 0 ] || fail "root host audit required"
+case "$PF_C1_SHARED_GID" in *[!0-9]*|'') fail "numeric shared GID required";; 0) fail "wheel/root group forbidden";; esac
+for p in "$PF_C1_HOST_WORK" "$PF_C1_HOST_RECEIPTS" "$PF_C1_INGEST_WORK" "$PF_C1_SOR_WORK" \
+ "$PF_C1_SOR_RECEIPTS" "$PF_C1_INGEST_RECEIPTS"; do
+ case "$p" in /*) ;; *) fail "all mount paths must be absolute";; esac
+ case "$p" in /|*' '*|*'..'*|*fi-c1-handoff*) fail "unsafe/foreign mount path $p";; esac
+ [ -d "$p" ] || fail "mount path missing $p"
+ [ ! -L "$p" ] || fail "mount path symlink $p"
 done
-
-
-[ "$(uname -s)" = FreeBSD ] || die "this audit only runs on FreeBSD"
-[ "$(id -u)" -eq 0 ] || die "host jail mount audit requires root"
-command -v mount >/dev/null 2>&1 || die "mount command missing"
-command -v jls >/dev/null 2>&1 || die "jls command missing"
-command -v sysrc >/dev/null 2>&1 || die "sysrc command missing"
-command -v jexec >/dev/null 2>&1 || die "jexec command missing"
-command -v stat >/dev/null 2>&1 || die "stat command missing"
-
-[ "$(sysrc -n jail_enable)" = YES ] || die "jail_enable is not YES"
-# On FreeBSD, an UNSET/empty jail_list means all configured jails
-# are started when jail_enable=YES. An explicitly restricted list must
-# contain both roles; live jls below is mandatory in either case.
+for p in "$PF_C1_JAIL_WORK_PATH" "$PF_C1_JAIL_RECEIPT_PATH"; do
+ case "$p" in /*) ;; *) fail "jail path must be absolute";; esac
+ case "$p" in /|*' '*|*'..'*|*fi-c1-handoff*) fail "unsafe jail path $p";; esac
+done
+[ "$PF_C1_HOST_WORK" != "$PF_C1_HOST_RECEIPTS" ] || fail "work and receipt host tmpfs must be distinct"
+[ "$PF_C1_JAIL_WORK_PATH" != "$PF_C1_JAIL_RECEIPT_PATH" ] || fail "separate work and receipt jail paths required"
+[ "$(sysrc -n jail_enable)" = YES ] || fail "jail boot policy not enabled"
+for jail in pathfinder-ingest pathfinder-sor; do
+ jls -j "$jail" jid >/dev/null 2>&1 || fail "jail $jail not running"
+ jexec "$jail" test -d "$PF_C1_JAIL_WORK_PATH" || fail "$jail missing work mountpoint"
+ jexec "$jail" test -d "$PF_C1_JAIL_RECEIPT_PATH" || fail "$jail missing receipts mountpoint"
+done
 jail_list=$(sysrc -n jail_list 2>/dev/null || true)
-if [ -n "$jail_list" ]; then
-    case " $jail_list " in
-        *" pathfinder-ingest "*) ;;
-        *) die "pathfinder-ingest excluded by explicit jail_list" ;;
-    esac
-    case " $jail_list " in
-        *" pathfinder-sor "*) ;;
-        *) die "pathfinder-sor excluded by explicit jail_list" ;;
-    esac
-fi
-
-jls -j pathfinder-ingest jid >/dev/null 2>&1 || die "pathfinder-ingest jail not running"
-jls -j pathfinder-sor jid >/dev/null 2>&1 || die "pathfinder-sor jail not running"
-
+for jail in pathfinder-ingest pathfinder-sor; do
+ if [ -n "$jail_list" ]; then
+  case " $jail_list " in *" $jail "*) ;; *) fail "$jail not in jail_list";; esac
+ fi
+done
 mount_info=$(mount -p)
-lookup() {
-    printf '%s\n' "$mount_info" | awk -v target="$1" \
-        '($2==target) {print $1 "|" $3 "|" $4; found=1; exit}
-         END {if (!found) exit 1}'
+lookup(){
+ printf '%s\n' "$mount_info" | awk -v target="$1" '
+   $2==target {print $1 "|" $3 "|" $4; found++; if(found>1)exit 2}
+   END {if(found!=1)exit 1}'
 }
-host=$(lookup "$PF_C1_HOST_RAM") || die "host RAM mount absent"
-ingest=$(lookup "$PF_C1_INGEST_RAM") || die "ingest shared RAM mount absent"
-sor=$(lookup "$PF_C1_SOR_RAM") || die "SoR shared RAM mount absent"
-IFS='|' read -r host_source host_type host_opts <<EOF
-$host
+check_mount(){
+ label=$1; target=$2; source=$3; fstype=$4; option=$5
+ found=$(lookup "$target") || fail "$label mount not found exactly once"
+ IFS='|' read -r got_source got_type got_opts <<EOF
+$found
 EOF
-IFS='|' read -r ingest_source ingest_type ingest_opts <<EOF
-$ingest
-EOF
-IFS='|' read -r sor_source sor_type sor_opts <<EOF
-$sor
-EOF
-
-[ "$host_type" = tmpfs ] || die "host source is not tmpfs (got $host_type)"
-[ "$ingest_type" = nullfs ] || die "ingest jail RAM is not nullfs"
-[ "$sor_type" = nullfs ] || die "SoR jail RAM is not nullfs"
-[ "$ingest_source" = "$PF_C1_HOST_RAM" ] ||
-    die "ingest nullfs does not point to the approved host tmpfs"
-[ "$sor_source" = "$PF_C1_HOST_RAM" ] ||
-    die "SoR nullfs does not point to the approved host tmpfs"
-
-has_option() {
-    opts=",$1,"
-    case "$opts" in
-        *,"$2",*) return 0 ;;
-        *) return 1 ;;
-    esac
+ [ "$got_source" = "$source" ] || fail "$label wrong source $got_source"
+ [ "$got_type" = "$fstype" ] || fail "$label wrong type $got_type"
+ case ",$got_opts," in *,"$option",*) ;; *) fail "$label missing $option";; esac
+ case "$label" in
+  HOST_*)
+   for opt in noexec nosuid; do
+    case ",$got_opts," in *,"$opt",*) ;; *) fail "$label missing $opt";; esac
+   done
+   ;;
+ esac
 }
-has_option "$ingest_opts" rw || die "ingest nullfs is not writable"
-has_option "$sor_opts" ro || die "SoR nullfs is not read-only"
+check_mount HOST_WORK "$PF_C1_HOST_WORK" tmpfs tmpfs rw
+check_mount HOST_RECEIPTS "$PF_C1_HOST_RECEIPTS" tmpfs tmpfs rw
+check_mount INGEST_WORK "$PF_C1_INGEST_WORK" "$PF_C1_HOST_WORK" nullfs rw
+check_mount SOR_WORK "$PF_C1_SOR_WORK" "$PF_C1_HOST_WORK" nullfs ro
+check_mount SOR_RECEIPTS "$PF_C1_SOR_RECEIPTS" "$PF_C1_HOST_RECEIPTS" nullfs rw
+check_mount INGEST_RECEIPTS "$PF_C1_INGEST_RECEIPTS" "$PF_C1_HOST_RECEIPTS" nullfs ro
 
-# Host RAM must be assigned to the dedicated shared read group.
-host_gid=$(stat -f '%g' "$PF_C1_HOST_RAM") ||
-    die "cannot read host RAM directory GID"
-[ "$host_gid" = "$PF_C1_SHARED_GID" ] ||
-    die "host tmpfs GID=$host_gid expected $PF_C1_SHARED_GID"
-
-ingest_uid=$(jexec -U "$PF_C1_INGEST_USER" pathfinder-ingest id -u) ||
-    die "ingest service account is unavailable"
-sor_uid=$(jexec -U "$PF_C1_SOR_USER" pathfinder-sor id -u) ||
-    die "SoR service account is unavailable"
-[ "$ingest_uid" -ne 0 ] || die "ingest service cannot run as root"
-[ "$sor_uid" -ne 0 ] || die "SoR service cannot run as root"
-[ "$ingest_uid" != "$sor_uid" ] ||
-    die "ingest and SoR must have separate UID identities"
-
-ingest_groups=$(jexec -U "$PF_C1_INGEST_USER" pathfinder-ingest id -G) ||
-    die "cannot read ingest service groups"
-sor_groups=$(jexec -U "$PF_C1_SOR_USER" pathfinder-sor id -G) ||
-    die "cannot read SoR service groups"
-case " $ingest_groups " in
-    *" $PF_C1_SHARED_GID "*) ;;
-    *) die "ingest service is not a member of shared RAM GID" ;;
-esac
-case " $sor_groups " in
-    *" $PF_C1_SHARED_GID "*) ;;
-    *) die "SoR service is not a member of shared RAM GID" ;;
-esac
-jexec -U "$PF_C1_INGEST_USER" pathfinder-ingest test -w "$PF_C1_JAIL_RAM_PATH" ||
-    die "ingest cannot write to its mounted RAM directory"
-jexec -U "$PF_C1_SOR_USER" pathfinder-sor test -r "$PF_C1_JAIL_RAM_PATH" ||
-    die "SoR cannot read its mounted RAM directory"
-
-# Does NOT prove source custody, TLS, existing handoff object access,
-# database identity, or actual reboot behavior. No files created.
-printf 'PATHFINDER_C1_C220_RAM_PREFLIGHT_PASS jail_enable=YES ingest=pathfinder-ingest sor=pathfinder-sor host_fstype=tmpfs ingest=nullfs_rw sor=nullfs_ro shared_gid=%s source=%s database_touched=false files_changed=0\n' "$PF_C1_SHARED_GID" "$PF_C1_HOST_RAM"
+ingest_uid=$(jexec -U "$PF_C1_INGEST_USER" pathfinder-ingest id -u) || fail "ingest service identity absent"
+sor_uid=$(jexec -U "$PF_C1_SOR_USER" pathfinder-sor id -u) || fail "SoR service identity absent"
+[ "$ingest_uid" -gt 0 ] && [ "$sor_uid" -gt 0 ] && [ "$ingest_uid" != "$sor_uid" ] || fail "separate non-root UIDs required"
+for assignment in "pathfinder-ingest:$PF_C1_INGEST_USER" "pathfinder-sor:$PF_C1_SOR_USER"; do
+ jail=${assignment%%:*}; user=${assignment#*:}
+ ids=$(jexec -U "$user" "$jail" id -G) || fail "cannot read $jail groups"
+ case " $ids " in *" $PF_C1_SHARED_GID "*) ;; *) fail "$jail lacks shared GID";; esac
+done
+for spec in "$PF_C1_HOST_WORK:$ingest_uid" "$PF_C1_HOST_RECEIPTS:$sor_uid"; do
+ path=${spec%:*}; expected=${spec##*:}
+ [ "$(stat -f '%u' "$path")" = "$expected" ] || fail "wrong tmpfs writer UID $path"
+ [ "$(stat -f '%g' "$path")" = "$PF_C1_SHARED_GID" ] || fail "wrong tmpfs shared GID $path"
+ [ "$(stat -f '%Lp' "$path")" = "750" ] || fail "tmpfs root must be mode 0750 $path"
+done
+jexec -U "$PF_C1_INGEST_USER" pathfinder-ingest test -w "$PF_C1_JAIL_WORK_PATH" || fail "ingest cannot write work"
+jexec -U "$PF_C1_INGEST_USER" pathfinder-ingest test -r "$PF_C1_JAIL_RECEIPT_PATH" || fail "ingest cannot read receipts"
+jexec -U "$PF_C1_SOR_USER" pathfinder-sor test -r "$PF_C1_JAIL_WORK_PATH" || fail "SoR cannot read work"
+jexec -U "$PF_C1_SOR_USER" pathfinder-sor test -w "$PF_C1_JAIL_RECEIPT_PATH" || fail "SoR cannot write receipts"
+printf 'PATHFINDER_C1_DUPLEX_RAM_PREFLIGHT_PASS work=tmpfs ingest_work=rw sor_work=ro receipts=tmpfs sor_receipts=rw ingest_receipts=ro group=%s tcp_listeners=0 SQL_writes=0\n' "$PF_C1_SHARED_GID"

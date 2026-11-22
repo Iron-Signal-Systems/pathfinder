@@ -42,13 +42,13 @@ done
 )
 chmod 0755 "$stage/bin/pathfinder-c1-frozen-check"
 for entry in pathfinder_c1_c220_preflight.sh \
-    pathfinder_c1_c220_discover.sh pathfinder_c1_verify_stage.sh \
-    pathfinder_c1_dev_pki.sh; do
+    pathfinder_c1_c220_discover.sh pathfinder_c1_verify_stage.sh; do
     cp "$repo_root/tools/$entry" "$stage/tools/$entry"
     chmod 0755 "$stage/tools/$entry"
 done
 cp "$repo_root/docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md" "$stage/docs/"
 cp "$repo_root/docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md" "$stage/docs/"
+cp "$repo_root/docs/PATHFINDER-C1-TCP-FREE-TMPFS-DESIGN-20261122.md" "$stage/docs/"
 printf 'source_commit=%s\ntarget=freebsd/amd64\nstatus=unreleased_development_test_only\nreceiver_included=false\n' \
     "$want_sha" > "$stage/BUILD-INFO"
 
@@ -63,7 +63,7 @@ printf 'source_commit=%s\ntarget=freebsd/amd64\nstatus=unreleased_development_te
    tools/pathfinder_c1_c220_preflight.sh \
    tools/pathfinder_c1_c220_discover.sh \
    tools/pathfinder_c1_verify_stage.sh \
-   tools/pathfinder_c1_dev_pki.sh \
+   docs/PATHFINDER-C1-TCP-FREE-TMPFS-DESIGN-20261122.md \
    docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md \
    docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md > SHA256SUMS
  sh tools/pathfinder_c1_verify_stage.sh "$stage"

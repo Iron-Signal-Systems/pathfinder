@@ -15,10 +15,9 @@ import (
  "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensoringest"
 )
 
-// This test traverses the whole C1 development pipeline with a REAL PG18
-// backend and an independently audited frozen original source. It uses
-// mTLS loopback control transport and a normal temporary directory as fake RAM,
-// so it is NOT native FreeBSD jail, tmpfs or mTLS acceptance.
+// This test traverses C1 with REAL PG18 and independent original evidence.
+// It exercises two separate directory-backed RAM control directions,
+// not TCP. CI directories are not FreeBSD tmpfs/nullfs acceptance.
 func TestFullC1FrozenPipelineIntoActualPG18(t *testing.T){
  wrapper:=requireIntegration(t)
  root:=t.TempDir()
@@ -55,17 +54,23 @@ func TestFullC1FrozenPipelineIntoActualPG18(t *testing.T){
  ram:=t.TempDir()
  if err:=os.Chmod(ram,0700);err!=nil{t.Fatal(err)}
  processor:=&SoRProcessor{ReadRoot:ram,Originals:orig,SQL:pg}
- // Both roles use real TLS 1.3 mutual authentication even though this CI
- // fixture runs on one host, not across FreeBSD jails.
- pki:=makeControlTestPKI(t)
- server:=makeControlTestServer(t,processor,pki)
- transport,err:=NewC1HTTPTransport(server.Listener.Addr().String(),"pathfinder-sor.internal",pki.client)
+ // Prove the actual two-directory, entirely filesystem-based control
+ // path against PostgreSQL 18. CI directories stand in for tmpfs/nullfs;
+ // native C220 mount permissions have a separate acceptance gate.
+ gid:=os.Getgid()
+ if gid<1{t.Skip("cannot exercise a non-root shared group as gid 0")}
+ receipts:=t.TempDir()
+ if err:=os.Chmod(receipts,0750);err!=nil{t.Fatal(err)}
+ ctx,cancel:=context.WithCancel(context.Background())
+ defer cancel()
+ sorDone:=make(chan error,1)
+ go func(){sorDone<-ServeRAMWork(ctx,ram,receipts,gid,processor,5*time.Millisecond)}()
+ transport,err:=NewRAMReceiptTransport(receipts,gid,5*time.Millisecond)
  if err!=nil{t.Fatal(err)}
- dispatcher,err:=NewDispatcher(ram,transport)
+ dispatcher,err:=NewDispatcherForJails(ram,transport,gid)
  if err!=nil{t.Fatal(err)}
  scheduler,err:=NewScheduler(DefaultSchedulerOptions(),dispatcher)
  if err!=nil{t.Fatal(err)}
- ctx:=context.Background()
  emitted:=0
  total,err:=ReplayFrozen(root,sensorID,sensorUUID,func(p Prepared)error{
   emitted++
@@ -95,4 +100,10 @@ func TestFullC1FrozenPipelineIntoActualPG18(t *testing.T){
  if err:=dispatcher.Wait(ctx);err!=nil{t.Fatal(err)}
  if count!=4{t.Fatalf("duplicate replay lost batches: %d",count)}
  if got2:=pgAdminIntegration(t,q);got2!="4"{t.Fatalf("duplicate replay changed indexed count: %s",got2)}
+ cancel()
+ select{
+ case err:=<-sorDone:
+   if err!=nil{t.Fatalf("filesystem SoR stopped: %v",err)}
+ case <-time.After(3*time.Second):t.Fatal("filesystem SoR loop did not shut down")
+ }
 }

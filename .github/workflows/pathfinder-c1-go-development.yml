@@ -20,6 +20,7 @@ on:
       - 'tools/pathfinder_c1_build_stage.sh'
       - 'tools/pathfinder_c1_dev_pki.sh'
       - 'docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md'
+      - 'docs/PATHFINDER-C1-TCP-FREE-TMPFS-DESIGN-20261122.md'
       - 'docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md'
       - 'docs/PATHFINDER-C1-INGEST-SOR-DEVELOPMENT.md'
   pull_request:
@@ -64,26 +65,20 @@ jobs:
           sh -n tools/pathfinder_c1_fetch_stage_from_gh.sh
           sh -n tools/test_pathfinder_c1_fetch_stage.sh
           sh -n tools/pathfinder_c1_build_stage.sh
-          sh -n tools/pathfinder_c1_dev_pki.sh
           sh tools/test_pathfinder_c1_preflight.sh
           # The script MUST refuse execution without explicit host paths.
           if sh tools/pathfinder_c1_c220_preflight.sh >/dev/null 2>&1; then
             echo "C1 host preflight unexpectedly accepted missing paths"
             exit 1
           fi
-      - name: Isolated seven-day development CA certificate validation
+      - name: Enforce TCP-free native Pathfinder C1 entrypoints
         shell: bash
         run: |
           set -euo pipefail
-          tmp=$(mktemp -d)
-          trap 'rm -rf "$tmp"' EXIT
-          sh tools/pathfinder_c1_dev_pki.sh --generate-dev-only "$tmp/pathfinder-c1-dev"
-          openssl verify -purpose sslserver \
-            -CAfile "$tmp/pathfinder-c1-dev/ca.crt" "$tmp/pathfinder-c1-dev/sor.crt"
-          openssl verify -purpose sslclient \
-            -CAfile "$tmp/pathfinder-c1-dev/ca.crt" "$tmp/pathfinder-c1-dev/ingest.crt"
-          if sh tools/pathfinder_c1_dev_pki.sh --generate-dev-only "$tmp/pathfinder-c1-dev" 2>/dev/null; then
-            echo "C1 PKI generator unexpectedly overwrote existing private keys"
+          if grep -En 'NewC1HTTPTransport|NewC1ControlServer|ListenAndServeTLS|ListenAndServe|"net"|"net/http"|sor-address|server-cert|client-cert' \
+            go/cmd/pathfinder-c1-ingest-dev/main_freebsd.go \
+            go/cmd/pathfinder-c1-sor-dev/main_freebsd.go; then
+            echo 'Native C1 must use ONLY duplex tmpfs for inter-jail IPC'
             exit 1
           fi
       - name: FreeBSD build syntax check only

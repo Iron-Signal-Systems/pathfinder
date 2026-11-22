@@ -33,19 +33,15 @@ func run()error{
  uuid:=flags.String("sensor-uuid","","existing registered PostgreSQL sensor UUID")
  ram:=flags.String("ram-dir","","ingest-writable nullfs view of host tmpfs")
  sharedGID:=flags.Int("ram-shared-gid",0,"dedicated non-root shared group GID for RAM objects")
- addr:=flags.String("sor-address","","private literal IP:port for SoR jail")
- serverDNS:=flags.String("sor-server-dns","","exact SoR mTLS certificate DNS SAN")
- cert:=flags.String("client-cert","","dedicated ingest client certificate")
- key:=flags.String("client-key","","dedicated ingest client private key")
- trust:=flags.String("server-ca","","pinned dedicated SoR CA certificate")
+ receipts:=flags.String("receipt-dir","","ingest read-only nullfs view of SoR-written SQL receipts")
  expectedFiles:=flags.Int("expect-files",0,"required expected original source segments")
  expectedRecords:=flags.Int64("expect-records",0,"required expected original source records")
  expectedManifest:=flags.String("expect-manifest-sha256","","required full original archive manifest SHA-256 from read-only baseline")
  flags.Parse(os.Args[1:])
  if flags.NArg()!=0{return errors.New("unexpected positional arguments")}
- if *archive==""||*sensor==""||*uuid==""||*ram==""||*addr==""||*serverDNS==""||
-    *cert==""||*key==""||*trust==""||*expectedFiles<1||*expectedRecords<1||*sharedGID<1||*expectedManifest==""{
-  return errors.New("all source, RAM, mTLS and exact source-count settings required")
+ if *archive==""||*sensor==""||*uuid==""||*ram==""||*receipts==""||
+    *expectedFiles<1||*expectedRecords<1||*sharedGID<1||*expectedManifest==""{
+  return errors.New("all source, RW work RAM, RO receipt RAM, group and exact source-count settings required")
  }
  // Validate the ENTIRE frozen source before initiating any RAM/SQL
  // handoff. Fail closed on a missing stream, missing file or altered count.
@@ -69,10 +65,10 @@ func run()error{
  fmt.Printf("PATHFINDER_C1_INGEST_SOURCE_PREFLIGHT_PASS files=%d records=%d archive_manifest_sha256=%s SQL_handoffs=0\n",
    sourceAudit.Files,sourceAudit.Records,fingerprint)
  if err:=sensorc1.RequireFreeBSDJailRAM(*ram,false);err!=nil{return err}
- tlsTransport,err:=sensorc1.NewC1HTTPTransport(*addr,*serverDNS,
-  sensorc1.C1TLSFiles{Certificate:*cert,PrivateKey:*key,TrustCA:*trust})
+ if err:=sensorc1.RequireFreeBSDJailRAM(*receipts,true);err!=nil{return err}
+ ramTransport,err:=sensorc1.NewRAMReceiptTransport(*receipts,*sharedGID,50*time.Millisecond)
  if err!=nil{return err}
- dispatch,err:=sensorc1.NewDispatcherForJails(*ram,tlsTransport,*sharedGID)
+ dispatch,err:=sensorc1.NewDispatcherForJails(*ram,ramTransport,*sharedGID)
  if err!=nil{return err}
  scheduler,err:=sensorc1.NewScheduler(sensorc1.DefaultSchedulerOptions(),dispatch)
  if err!=nil{return err}
@@ -94,7 +90,7 @@ func run()error{
  }
  if err:=scheduler.Drain(ctx);err!=nil{return err}
  if err:=dispatch.Wait(ctx);err!=nil{return err}
- fmt.Printf("PATHFINDER_C1_DEV_SQL_COMMIT_ACKS_PASS files=%d batches=%d rows=%d elapsed=%s sql_hosted_in_sor=true canonical_accepted=false\n",
+ fmt.Printf("PATHFINDER_C1_DEV_SQL_COMMIT_ACKS_PASS files=%d batches=%d rows=%d elapsed=%s sql_hosted_in_sor=true ipc=tmpfs_only canonical_accepted=false\n",
   summary.Files,summary.Batches,summary.Records,time.Since(began))
  return nil
 }

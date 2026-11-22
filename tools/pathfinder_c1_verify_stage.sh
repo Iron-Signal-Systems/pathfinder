@@ -16,7 +16,7 @@ for path in bin/pathfinder-c1-ingest-dev bin/pathfinder-c1-sor-dev \
     tools/pathfinder_c1_c220_preflight.sh \
     tools/pathfinder_c1_c220_discover.sh \
     tools/pathfinder_c1_verify_stage.sh \
-    tools/pathfinder_c1_dev_pki.sh \
+    docs/PATHFINDER-C1-TCP-FREE-TMPFS-DESIGN-20261122.md \
     docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md \
     docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md \
     BUILD-INFO SHA256SUMS; do
@@ -38,7 +38,8 @@ while IFS= read -r line || [ -n "$line" ]; do
 bin/pathfinder-c1-verifier-dev|bin/pathfinder-c1-ram-probe-dev|\
 bin/pathfinder-c1-frozen-check|\
 tools/pathfinder_c1_c220_preflight.sh|tools/pathfinder_c1_c220_discover.sh|\
-tools/pathfinder_c1_verify_stage.sh|tools/pathfinder_c1_dev_pki.sh|\
+tools/pathfinder_c1_verify_stage.sh|\
+docs/PATHFINDER-C1-TCP-FREE-TMPFS-DESIGN-20261122.md|\
 docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md|\
 docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md) ;;
         *) echo "PATHFINDER_C1_STAGE_FAIL unrecognized manifest path" >&2; exit 1 ;;
@@ -70,7 +71,7 @@ expected_names=$(printf '%s\n' \
     tools/pathfinder_c1_c220_preflight.sh \
     tools/pathfinder_c1_c220_discover.sh \
     tools/pathfinder_c1_verify_stage.sh \
-    tools/pathfinder_c1_dev_pki.sh \
+    docs/PATHFINDER-C1-TCP-FREE-TMPFS-DESIGN-20261122.md \
     docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md \
     docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md | LC_ALL=C sort)
 actual_names=$(awk '{print $2}' "$stage/SHA256SUMS" | LC_ALL=C sort)

@@ -1,110 +1,59 @@
-# Pathfinder C1 — C220 staged test handoff
+# Pathfinder C1 — C220 staging handoff, TCP-free native development
 
-**Status: Ready to begin C220 READ-ONLY discovery only after successful staging-package CI.**
-This is not approval for live ingestion or canonical SoR writes.
+**Status: isolated development, C220 read-only discovery completed; native mount, clone and 685,218-record replay not accepted.**
+**Branch: dev/c1-ingest-sor-20261122.**
+Receiver, UDM-Pro, FI, populated Pathfinder SoR and boot services remain untouched.
 
-**GitHub branch:** dev/c1-ingest-sor-20261122
-**Scope:** pathfinder-ingest, pathfinder-sor, independent verifier B, frozen UDM-Pro JSONL replay. Receiver deferred.
+## Transport correction
 
-## Invariants
+Read [TCP-free tmpfs design](PATHFINDER-C1-TCP-FREE-TMPFS-DESIGN-20261122.md). Native C1 uses **two separate host tmpfs instances and four jail nullfs views**, not a TCP or mTLS control listener. Ingest: work RW, receipts RO. SoR: work RO, receipts RW. The original FI reference design has tmpfs payloads but mTLS/TCP control, which is deliberately *not* reused by Pathfinder. The existing 93db76cd0e55 stage is for source discovery only; **do not deploy its TCP native binaries.**
 
-- Do not change UDM-Pro, FI, its drive replacement, the receiver, or the populated Pathfinder SoR.
-- Historical test source requires exact original 9 files, 685,218 records, registered sensor identity, and an independently pinned whole-archive SHA-256 manifest.
-- Test SQL may target ONLY a separately verified disposable PostgreSQL 18 database named pathfinder_c1_clone.
-- The shared memory source is host tmpfs: ingest RW nullfs; SoR RO nullfs. The two service users are non-root with distinct UIDs and the same approved non-root RAM group.
-- Verifier B is a separately executing read-only process with a SELECT-only PostgreSQL role and does not block SQL commit acknowledgments.
-- No auto-created clone, role, jail mount, certificate or rc.conf entry is provided or deployed by this branch.
+## Gate 1 — exact GitHub CI artifact, staged via dev-pathfinder
 
-## Gate 1 — Retrieve exact tested FreeBSD binaries through pathfinder-dev
+Use the existing authenticated checkout /home/jwood/pathfinder in dev-pathfinder. Verify that the active branch is dev/c1-ingest-sor-20261122 and the tracked checkout is clean. Fetch and fast-forward, then retrieve a **new exact-commit CI artifact**:
 
-**Use the existing `pathfinder-dev` jail as the GitHub checkout and artifact staging point.** No manual host-browser artifact download is required. The staging artifact is a GitHub Actions build output, *not* a tracked Git file: `git pull` updates source and the retrieval script then obtains the independently CI-built binaries. The jail must have `git` and an authenticated `gh` CLI with Actions-read access. Do not install tools, change credentials, or create host paths automatically.
-
-From the existing Pathfinder checkout **inside pathfinder-dev**, after confirming its actual repository path:
-
-    cd /EXISTING/PATHFINDER/CHECKOUT
+    cd /home/jwood/pathfinder
     git fetch origin dev/c1-ingest-sor-20261122
-    git switch dev/c1-ingest-sor-20261122
     git pull --ff-only origin dev/c1-ingest-sor-20261122
     gh auth status
-    sh tools/pathfinder_c1_fetch_stage_from_gh.sh /ABSOLUTE/NEW/PRIVATE/C1-STAGE
+    sh tools/pathfinder_c1_fetch_stage_from_gh.sh "$HOME/pathfinder-c1-stage-$(git rev-parse --short=12 HEAD)"
 
-The helper requires a clean tracked checkout, searches successful development workflow runs for the **exact checkout commit**, validates the run's source SHA/branch/result, downloads the named GitHub Actions artifact into a *new* private directory, compares BUILD-INFO against the checkout, and verifies all eleven staged checksums twice. No SQL connection, receiver, runtime jail, or host configuration is changed.
+The helper refuses missing CI, wrong commit, overwriting an existing stage, and bad file hashes. Require both stage-verifier PASS lines and final DEV_FETCH_PASS. Reconcile the actual dev jail root on the host using jls and reverify via staged pathfinder_c1_verify_stage.sh before any further test.
 
-Require `PATHFINDER_C1_DEV_FETCH_PASS` and `PATHFINDER_C1_STAGE_VERIFY_PASS`, then record `source_commit`, `run_id` and the staging directory. A commit without its own successful Actions artifact must STOP until CI finishes; never substitute an older artifact. The generated files are inside the **dev jail** and must not be treated as installed runtime binaries.
+## Gate 2 — host discovery (already performed, repeat if topology changes)
 
-When moving to host read-only discovery, first resolve the actual `pathfinder-dev` jail root using FreeBSD host `jls`; access or explicitly copy the verified package to an independently approved **host-visible** staging path without guessing jail root paths or changing the running runtime jails. Reverify the staged files on the host before running Gate 2.
+    sh /ACTUAL/HOST-VISIBLE/STAGE/tools/pathfinder_c1_c220_discover.sh
 
-## Gate 2 — First C220 action: read-only discovery
+Observed 2026-11-22: FreeBSD 15.1-p6, running Pathfinder ingest and SoR jail roots under /fast/jails/roots/, original 9-file frozen UDM-Pro archive at /work/pathfinder/udm-pro-20261120-0500EST, RO SoR source mount, PostgreSQL 18.6. No Pathfinder C1 RAM mounts or service users existed. These are discovery facts, not configuration approval.
 
-Run from the FreeBSD host, not inside a jail:
+## Gate 3 — deliberate, separately authorized two-way RAM mount preparation
 
-    sh /EXACT/STAGING/PATH/tools/pathfinder_c1_c220_discover.sh
+Follow [mount and RAM acceptance](PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md) and choose two isolated, bounded tmpfs mountpoints, four nullfs paths, distinct unprivileged service identities and a Pathfinder-only shared non-root GID. Invent no UID/GID or jail.conf linkages. Do not change existing FI mountpoints or Pathfinder populated PostgreSQL storage. The approved mount setup must include BOTH directions and all original-source read-only views.
 
-Record: FreeBSD version; running pathfinder-ingest/pathfinder-sor names and jail roots; enabled jail startup policy; actual tmpfs/nullfs mounts; relevant ZFS datasets; availability of psql inside SoR.
+Run the **read-only** host preflight with the 11 explicitly verified PF_C1_ inputs and require:
 
-No configuration changes, mounts, files, SQL connections or sensor/receiver actions occur. **Stop here** if the output contradicts the approved architecture. Do not guess jail root paths or service accounts.
+    PATHFINDER_C1_DUPLEX_RAM_PREFLIGHT_PASS
 
-## Gate 3 — Required operator-verified values
+It verifies mount sources, read/write modes, ownership and group membership, but does not perform actual probes or establish recovery.
 
-- The actual C220 host tmpfs path and capacity; ingest/SOR mountpoints; jail-visible RAM path.
-- Separate ingest and SoR service users with approved shared positive RAM GID.
-- Original frozen archive paths visible read-only to ingest, SoR and verifier B.
-- Original registered sensor key and UUID.
-- Pinned SHA-256 archive manifest and exact per-stream records from the read-only frozen-check command.
-- PostgreSQL local Unix socket, clone-only write role, separate SELECT-only verifier role, and actual disposable-clone isolation evidence.
-- Private SoR jail IP:port, exact mTLS server/client DNS SAN names, separate private keys and pinned CA.
+## Gate 4 — native two-direction permission and data proofs
 
-All three native services require the same original source manifest SHA-256. The SoR validates it independently before opening a SQL connection.
+Stage the matching RAM probe from the new exact CI artifact inside both jails without altering existing services. Run ingest publish of a disposable 64-byte work object, read as SoR, and clean up from ingest. Then independently demonstrate that SoR can publish a disposable receipt on its dedicated writable tmpfs and ingest can read it through its RO mount, while neither reader can write to its read-only mount. The full real receipt proof also requires a confirmed isolated SQL commit. No DB writes at the probe gate.
 
-## Development-only mTLS certificates (controlled configuration after discovery)
+STOP if any mount allows the wrong writer, has world access, or points to persistent storage.
 
-The staging package includes tools/pathfinder_c1_dev_pki.sh, which is NEVER
-called by the CI package builder or automatically by either jail. After
-operator authorization and only on the administrative host, generate a
-NEW 7-day test CA and two certificates in a NEW absolute private directory:
+## Gate 5 — read-only frozen original and SQL clone preflight
 
-    sh /EXACT/STAGING/PATH/tools/pathfinder_c1_dev_pki.sh --generate-dev-only /OPERATOR/PRIVATE/NEW/PATHFINDER-C1-DEV-PKI-DIR
+Use actual registered original sensor ID/UUID and read-only original archive with the exact staged frozen checker:
 
-This refuses overwriting an existing directory and emits only ephemeral
-development credentials. The CA private key MUST stay outside both jails
-and must never be committed to Git or copied to any shared RAM directory.
-Only ingest.key, ingest.crt and ca.crt go to the ingest jail under an
-unprivileged service account; only sor.key, sor.crt and ca.crt go to SoR.
-Leaf keys must remain readable solely to their respective service
-identities. Source manifest, SQL clone and RAM mount verification still
-apply independently. Rotate certificates before the seven-day expiry.
+    /ACTUAL/STAGE/bin/pathfinder-c1-frozen-check -root /ORIGINAL/READONLY/ARCHIVE -sensor-id /ACTUAL/SENSOR/ID -sensor-uuid /ACTUAL/UUID -expect-files 9 -expect-records 685218
 
-## Gate 4 — Native shared RAM proof
+Record per-file and whole-archive SHA-256, exact four stream counts, memory and timings. The original source must be independently readable within ingest, SoR and verifier B, and its manifest pinned in all three native process invocations.
 
-After a separately reviewed mount/group setup, use the exact seven PF_C1_ variables described in PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md.
+Only after a separate isolation review may a **disposable** PostgreSQL 18 database named pathfinder_c1_clone be provisioned and a clone-only write role and separate SELECT-only verifier role verified. The SoR SQL connection must use the local Unix socket; no PostgreSQL access in ingest.
 
-    sh /EXACT/STAGING/PATH/tools/pathfinder_c1_c220_preflight.sh
+## Gate 6 — native two-jail C1 acceptance, not automatic
 
-Then follow that runbook: publish a 64-byte temporary probe from the ingest user; read and verify it as the SoR user through its RO mount; remove only that probe as ingest. No PostgreSQL or receiver writes.
+After work/receipts mounts, source checks and clone roles are verified, explicitly start SoR filesystem consumer against the clone, independent verifier B alongside it, then frozen replay ingest using the matching tmpfs paths. Observe that no native C1 service listens on TCP. Require exact original counts (685,218), child/typed readback, matching commit receipts, duplicate replay safety, lost receipt and tmpfs-loss recovery, independent B, and resource telemetry. No canonical promotion or live sensor acknowledgment.
 
-## Gate 5 — Read-only full frozen source check
-
-Using the operator-verified identity, original archive and independently built frozen checker:
-
-    /EXACT/CHECKER/pathfinder-c1-frozen-check -root /ORIGINAL/READONLY/ARCHIVE -sensor-id REGISTERED_ID -sensor-uuid REGISTERED_UUID -expect-files 9 -expect-records 685218
-
-Record the FROZEN_SOURCE_MANIFEST_SHA256, each stored-file hash, per-family counts, source preparation rate, CPU and allocations. Do not invent or reuse the manifest SHA-256. Verify all three native service startup flags include -expect-manifest-sha256 set to the observed value.
-
-## Gate 6 — Isolated native SQL acceptance, NOT automatic
-
-Only after the actual C220 mounts, PG clone, credentials, and mTLS credentials are independently verified:
-
-1. Start the SoR development process, explicitly targeting pathfinder_c1_clone through the local PostgreSQL Unix socket.
-2. Run verifier B in parallel, with a separate SELECT-only SQL role.
-3. Run ingest, with verified GID, frozen archive SHA-256 and private SoR IP:port.
-4. Require exact SQL commits, independently verified typed/child rows, original source totals, and no populated SoR modifications.
-5. Test interrupted SQL, lost acknowledgments, disappeared tmpfs, duplicate replay, and final exact source integrity before measuring throughput.
-6. Measure wall time, CPU, peak RSS, WAL and I/O; compare against isolated clone baseline.
-
-No service is enabled by boot/startup, and no receiver is used in this test.
-
-## STOP conditions
-
-Checksum mismatch; incorrect branch/commit; missing jail; unexpected mount mode; world-accessible RAM object; missing shared group; original source SHA-256 mismatch; an SQL role with access outside the isolated clone; bad mTLS identity; incomplete SQL commit or independent B mismatch.
-
-The next physical action is read-only discovery on C220. Later configuration must be based on its real output and operator approval, never inferred host paths.
+**STOP** on source mismatch, unsafe mount, role crossing database boundary, incomplete SQL, forged/replayed receipt, failed recovery, or unknown path. Nothing in this branch automatically deploys to C220 or enables rc startup.
