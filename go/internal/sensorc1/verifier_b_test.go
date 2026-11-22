@@ -4,6 +4,9 @@ import (
  "context"
  "errors"
  "testing"
+ "os"
+ "path/filepath"
+ "strings"
  "time"
 
  "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensoringest"
@@ -69,5 +72,23 @@ func TestIndependentBRequiresBoundedWaitAndOriginals(t *testing.T){
  b:=IndependentVerifierB{}
  if err:=b.VerifyBatch(context.Background(),p);err==nil{
   t.Fatal("unconfigured verification accepted")
+ }
+}
+
+func TestIndependentBRefusesPartialFrozenSourceBeforeAnySQL(t *testing.T){
+ root:=t.TempDir()
+ path:=filepath.Join(root,"health-ignored.jsonl.active")
+ // Use the canonical source path for the original sensor health family.
+ path=filepath.Join(root,"health","health-valid.jsonl.active")
+ if err:=os.MkdirAll(filepath.Dir(path),0700);err!=nil{t.Fatal(err)}
+ if err:=os.WriteFile(path,[]byte(cases[sensoringest.Health].raw+"\n"),0600);err!=nil{t.Fatal(err)}
+ sql:=&stagedBSQL{firstState:SQLComplete}
+ b:=IndependentVerifierB{SQL:sql,PollInterval:time.Millisecond,MaxWait:time.Second}
+ _,err:=b.VerifyFrozen(context.Background(),root,sensorID,sensorUUID,9,685218)
+ if err==nil||!strings.Contains(err.Error(),"source count preflight failed"){
+  t.Fatalf("missing incomplete-archive refusal: %v",err)
+ }
+ if sql.polls!=0||sql.verifyCalls!=0{
+  t.Fatalf("partial original archive reached SQL readback: %+v",sql)
  }
 }
