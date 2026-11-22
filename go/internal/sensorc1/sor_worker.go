@@ -41,10 +41,10 @@ type SoRProcessor struct {
 }
 
 // ProcessBundle returns an exact SQL COMMIT ACK only after every batch has
-// independently verified source provenance, written/confirmed a complete
-// PostgreSQL transaction, and passed read-back verification. SQL failure or
-// uncertain state stops the group and yields NO ACK. Replaying may then
-// inspect already committed batches; no batch rows are deleted.
+// independently checked ORIGINAL source provenance and written/confirmed a
+// durable PostgreSQL transaction. Independent verifier B performs full
+// readback in PARALLEL, not on the SQL ACK critical path. SQL failure or
+// uncertain state stops the group with NO ACK. No batch rows are deleted.
 func(s *SoRProcessor)ProcessBundle(ctx context.Context,ref BundleReference)(SQLCommitAck,error){
     var zero SQLCommitAck
     if s==nil||ctx==nil||s.Originals==nil||s.SQL==nil{
@@ -79,8 +79,11 @@ func(s *SoRProcessor)ProcessBundle(ctx context.Context,ref BundleReference)(SQLC
         default:
             return zero,fmt.Errorf("C1 SoR: unexpected PostgreSQL state %q",state)
         }
-        if err:=s.SQL.Verify(ctx,plan);err!=nil{
-            return zero,fmt.Errorf("C1 SoR: postcommit readback failed for batch %d: %w",i,err)
+        // SQL ACK reflects the durable completion marker, NOT independent
+        // verifier B acceptance. A lost/uncertain SQL response fails closed.
+        committedState,err:=s.SQL.Inspect(ctx,plan)
+        if err!=nil || committedState!=SQLComplete {
+            return zero,fmt.Errorf("C1 SoR: batch %d durable completion not confirmed (state=%s): %w",i,committedState,err)
         }
         ids=append(ids,p.BatchUUID)
     }
