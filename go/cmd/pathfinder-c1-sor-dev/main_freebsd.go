@@ -42,6 +42,9 @@ func run()error{
  key:=flags.String("server-key","","dedicated SoR TLS private key")
  trust:=flags.String("client-ca","","pinned ingest-client issuing CA")
  clientDNS:=flags.String("ingest-client-dns","","exact permitted ingest client DNS SAN")
+ expectedFiles:=flags.Int("expect-files",0,"exact original source file count")
+ expectedRecords:=flags.Int64("expect-records",0,"exact original source record count")
+ expectedManifest:=flags.String("expect-manifest-sha256","","pinned original archive SHA-256 fingerprint")
  maxCacheMiB:=flags.Int64("max-original-cache-mib",4096,"maximum frozen original payload bytes retained in MiB, 1-4096")
  flags.Parse(os.Args[1:])
  if flags.NArg()!=0{return errors.New("unexpected positional arguments")}
@@ -50,10 +53,26 @@ func run()error{
   return errors.New("refuse wildcard/non-literal SoR listening address")
  }
  if *archive==""||*sensor==""||*uuid==""||*ram==""||*pgSocket==""||
-    *pgRole==""||*cert==""||*key==""||*trust==""||*clientDNS==""{
+    *pgRole==""||*cert==""||*key==""||*trust==""||*clientDNS==""||
+    *expectedFiles<1||*expectedRecords<1||*expectedManifest==""{
   return errors.New("SoR original custody, local SQL, RAM and mTLS options are mandatory")
  }
  if *maxCacheMiB<1||*maxCacheMiB>4096{return errors.New("source-cache-MiB must be 1..4096")}
+ // SoR performs its OWN read-only capture audit. It must not rely on
+ // ingest's claims, and it must not open SQL before proving pinned source.
+ audit,err:=sensorc1.AuditFrozen(*archive,*sensor)
+ if err!=nil{return fmt.Errorf("C1 SoR original source preflight: %w",err)}
+ if audit.Files!=*expectedFiles||audit.Records!=*expectedRecords{
+  return fmt.Errorf("C1 SoR source count mismatch files=%d/%d records=%d/%d; SQL connections=0",
+   audit.Files,*expectedFiles,audit.Records,*expectedRecords)
+ }
+ fingerprint,err:=sensorc1.FrozenArchiveFingerprint(audit)
+ if err!=nil{return err}
+ if fingerprint!=*expectedManifest{
+  return errors.New("C1 SoR: original archive manifest differs from pinned source; SQL connections=0")
+ }
+ fmt.Printf("PATHFINDER_C1_SOR_SOURCE_PREFLIGHT_PASS files=%d records=%d manifest=%s sql_connections=0\n",
+  audit.Files,audit.Records,fingerprint)
  if err:=sensorc1.RequireFreeBSDJailRAM(*ram,true);err!=nil{return err}
  approval:=os.Getenv("PATHFINDER_C1_SQL_CLONE_APPROVED")
  if approval!=sensorc1.CloneWriteAuthorization{
