@@ -58,3 +58,26 @@ func TestFrozenSourceReaderRejectsMissingOrModifiedEvidence(t *testing.T){
   t.Fatal("malformed archive accepted")
  }
 }
+
+func TestFrozenOriginalCacheHasExplicitFailClosedPayloadBudget(t *testing.T){
+ root:=t.TempDir()
+ source:=filepath.Join(root,"observations-20261122.jsonl.active")
+ raw:=[]byte(cases[sensoringest.Observations].raw+"\n")
+ if err:=os.WriteFile(source,raw,0600);err!=nil{t.Fatal(err)}
+ if _,err:=NewFrozenOriginalReaderWithLimit(root,sensorID,sensorUUID,0);err==nil{
+  t.Fatal("unbounded or zero source-cache allowance accepted")
+ }
+ if _,err:=NewFrozenOriginalReaderWithLimit(root,sensorID,sensorUUID,DefaultFrozenCacheBytes+1);err==nil{
+  t.Fatal("source-cache allowance above audited upper bound accepted")
+ }
+ if _,err:=NewFrozenOriginalReaderWithLimit(root,sensorID,sensorUUID,int64(len(raw)-1));err==nil||
+    !strings.Contains(err.Error(),"cache budget exceeded") {
+  t.Fatalf("truncated original source cache did not stop: %v",err)
+ }
+ reader,err:=NewFrozenOriginalReaderWithLimit(root,sensorID,sensorUUID,int64(len(raw)))
+ if err!=nil{t.Fatal(err)}
+ batches,bytes,max:=reader.CachedSourceStats()
+ if batches!=1||bytes!=int64(len(raw))||max!=int64(len(raw)){
+  t.Fatalf("cache retained unexpected evidence batches=%d bytes=%d limit=%d",batches,bytes,max)
+ }
+}
