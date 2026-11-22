@@ -121,3 +121,43 @@ func TestFrozenChunkBoundaryKeepsOriginalSourceOrdinalAndBatchID(t *testing.T){
         t.Fatal("separate source chunks reused the same durable batch ID")
     }
 }
+
+func TestFrozenArchiveFingerprintDistinguishesSameCountChangedSource(t *testing.T){
+ root:=t.TempDir()
+ dir:=filepath.Join(root,"health")
+ if err:=os.MkdirAll(dir,0700);err!=nil{t.Fatal(err)}
+ path:=filepath.Join(dir,"health-same-record-count.jsonl.active")
+ original:=cases[sensoringest.Health].raw+"\n"
+ if err:=os.WriteFile(path,[]byte(original),0600);err!=nil{t.Fatal(err)}
+ baseline,err:=AuditFrozen(root,sensorID);if err!=nil{t.Fatal(err)}
+ pinned,err:=FrozenArchiveFingerprint(baseline);if err!=nil{t.Fatal(err)}
+ changed:=strings.ReplaceAll(original,"2026-11-20T10:00:00Z","2026-11-20T10:00:01Z")
+ if len(changed)!=len(original){t.Fatal("fixture source size changed")}
+ if err:=os.WriteFile(path,[]byte(changed),0600);err!=nil{t.Fatal(err)}
+ newer,err:=AuditFrozen(root,sensorID);if err!=nil{t.Fatal(err)}
+ if newer.Files!=baseline.Files||newer.Records!=baseline.Records{
+  t.Fatal("fixture no longer has identical counts")
+ }
+ fingerprint,err:=FrozenArchiveFingerprint(newer)
+ if err!=nil{t.Fatal(err)}
+ if fingerprint==pinned{t.Fatal("changed source with same files/records accepted pinned hash")}
+}
+func TestFrozenArchiveFingerprintOrderIndependentAndStrict(t *testing.T){
+ hash1:=strings.Repeat("a",64)
+ hash2:=strings.Repeat("b",64)
+ a:=FrozenSummary{StoredSHA256:map[string]string{"health/b.jsonl.gz":hash2,"identity/a.jsonl.gz":hash1}}
+ b:=FrozenSummary{StoredSHA256:map[string]string{"identity/a.jsonl.gz":hash1,"health/b.jsonl.gz":hash2}}
+ got,err:=FrozenArchiveFingerprint(a);if err!=nil{t.Fatal(err)}
+ same,err:=FrozenArchiveFingerprint(b);if err!=nil{t.Fatal(err)}
+ if got!=same{t.Fatal("archive fingerprint changed with map iteration order")}
+ for _,invalid:=range []FrozenSummary{
+  {},
+  {StoredSHA256:map[string]string{"../escape.jsonl":hash1}},
+  {StoredSHA256:map[string]string{"health/a.jsonl":"not-sha256"}},
+  {StoredSHA256:map[string]string{"health/a.jsonl":strings.ToUpper(hash1)}},
+ }{
+  if _,err:=FrozenArchiveFingerprint(invalid);err==nil{
+   t.Fatal("accepted unsafe/invalid archive manifest")
+  }
+ }
+}
