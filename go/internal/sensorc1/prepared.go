@@ -30,6 +30,7 @@ type Input struct {
     Stream        sensoringest.Stream
     SchemaVersion string
     WireBatchID   string
+    BatchUUID     string // Original receiver/frozen-import batch UUID; never silently replace it.
     SegmentOrdinalStart int64
     Payload       []byte
 }
@@ -52,7 +53,7 @@ type Prepared struct {
 
 func Prepare(in Input) (Prepared, error) {
     var zero Prepared
-    if !safeID.MatchString(in.SensorID) || !safeID.MatchString(in.WireBatchID) || !uuidPattern.MatchString(in.SensorUUID) {
+    if !safeID.MatchString(in.SensorID) || !safeID.MatchString(in.WireBatchID) || !uuidPattern.MatchString(in.SensorUUID) || !uuidPattern.MatchString(in.BatchUUID) {
         return zero, errors.New("C1 prepare: invalid operator-provided source identity")
     }
     if in.SegmentOrdinalStart < 1 || in.SegmentOrdinalStart > int64(^uint64(0)>>1)-sensoringest.MaxBatchRecords {
@@ -73,9 +74,8 @@ func Prepare(in Input) (Prepared, error) {
     if expectedSchema == "" || in.SchemaVersion != expectedSchema {
         return zero, errors.New("C1 prepare: unsupported stream/schema")
     }
-    batchUUID := sensorsor.ID("pathfinder-c1-batch-v1", in.SensorUUID, string(in.Stream), in.WireBatchID)
     evidence := sensorsor.New()
-    ctx := sensorsor.Context{SensorUUID:in.SensorUUID, BatchUUID:batchUUID, StartOrdinal:1}
+    ctx := sensorsor.Context{SensorUUID:in.SensorUUID, BatchUUID:in.BatchUUID, StartOrdinal:1}
     scanner := bufio.NewScanner(bytes.NewReader(in.Payload))
     scanner.Buffer(make([]byte, 64<<10), sensoringest.MaxRecordBytes+2)
     for scanner.Scan() {
@@ -97,7 +97,7 @@ func Prepare(in Input) (Prepared, error) {
     digest := sha256.Sum256(in.Payload)
     return Prepared{Format:PreparedFormat, SensorID:in.SensorID, SensorUUID:in.SensorUUID,
         Stream:in.Stream, SchemaVersion:in.SchemaVersion, WireBatchID:in.WireBatchID,
-        BatchUUID:batchUUID, PayloadSHA256:hex.EncodeToString(digest[:]),
+        BatchUUID:in.BatchUUID, PayloadSHA256:hex.EncodeToString(digest[:]),
         PayloadBytes:len(in.Payload), SegmentOrdinalStart:in.SegmentOrdinalStart,
         Evidence:evidence}, nil
 }
@@ -107,14 +107,11 @@ func Prepare(in Input) (Prepared, error) {
 // It is not independent verifier-B or PostgreSQL commit verification.
 func ValidatePrepared(p Prepared) error {
     if p.Format != PreparedFormat || !safeID.MatchString(p.SensorID) ||
-        !safeID.MatchString(p.WireBatchID) || !uuidPattern.MatchString(p.SensorUUID) ||
+        !safeID.MatchString(p.WireBatchID) || !uuidPattern.MatchString(p.SensorUUID) || !uuidPattern.MatchString(p.BatchUUID) ||
         p.Evidence == nil || p.Evidence.Count < 1 || p.Evidence.Count > sensoringest.MaxBatchRecords ||
         p.PayloadBytes < 1 || p.PayloadBytes > sensoringest.MaxBatchBytes ||
         p.SegmentOrdinalStart < 1 || p.SegmentOrdinalStart > int64(^uint64(0)>>1)-sensoringest.MaxBatchRecords {
         return errors.New("C1 prepared: invalid metadata or limits")
-    }
-    if p.BatchUUID != sensorsor.ID("pathfinder-c1-batch-v1", p.SensorUUID, string(p.Stream), p.WireBatchID) {
-        return errors.New("C1 prepared: batch UUID mismatch")
     }
     var tableName string
     switch p.Stream {
