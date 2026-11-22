@@ -41,3 +41,66 @@ jobs:
         run: |
           GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/pathfinder-c1-frozen-check
           GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build ./internal/sensorc1
+
+  postgres18-clone:
+    name: PostgreSQL 18 disposable clone integration (NO C220 access)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+      - name: Start PostgreSQL 18 with an ephemeral local socket
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pathfinder-pg18-socket"
+          chmod 0777 "$RUNNER_TEMP/pathfinder-pg18-socket"
+          docker run -d --name pathfinder-c1-pg18 \
+            -e POSTGRES_PASSWORD=disposable-ci-only \
+            -e POSTGRES_DB=pathfinder_c1_clone \
+            -e POSTGRES_INITDB_ARGS=--auth-local=trust \
+            -v "$RUNNER_TEMP/pathfinder-pg18-socket:/var/run/postgresql" \
+            postgres:18 -c unix_socket_directories=/var/run/postgresql
+          for i in $(seq 1 60); do
+            if docker exec pathfinder-c1-pg18 \
+              pg_isready -h /var/run/postgresql -U postgres -d pathfinder_c1_clone >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs pathfinder-c1-pg18
+          exit 1
+      - name: Install EXISTING sensor schema into empty disposable clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i pathfinder-c1-pg18 \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d pathfinder_c1_clone <<'SQL'
+          CREATE ROLE pathfinder_app LOGIN;
+          CREATE SCHEMA pathfinder;
+          GRANT USAGE ON SCHEMA pathfinder TO pathfinder_app;
+          SQL
+          docker exec -i pathfinder-c1-pg18 \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d pathfinder_c1_clone \
+            < go/cmd/pathfinder/migrations/0008-sensor-observation-sor.sql
+          docker exec -i pathfinder-c1-pg18 \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d pathfinder_c1_clone \
+            < go/cmd/pathfinder/migrations/0009-sensor-batch-replay-indexes.sql
+      - name: Test real PG18 SQL commits, duplicate replay and child tamper
+        working-directory: go
+        shell: bash
+        run: |
+          set -euo pipefail
+          wrapper="$RUNNER_TEMP/pathfinder-c1-psql-wrapper"
+          printf '%s\n' '#!/bin/sh' \
+            'exec docker exec -i pathfinder-c1-pg18 psql "$@"' > "$wrapper"
+          chmod 0700 "$wrapper"
+          export PATHFINDER_C1_PG_TEST_WRAPPER="$wrapper"
+          go test -tags pathfinder_pg18_integration \
+            -count=1 -v ./internal/sensorc1 \
+            -run 'TestActualPostgres18|TestRealSQLPlansAreDeterministic'
+      - name: Always destroy disposable PostgreSQL container
+        if: always()
+        shell: bash
+        run: docker rm -fv pathfinder-c1-pg18 || true
