@@ -47,6 +47,24 @@ No configuration changes, mounts, files, SQL connections or sensor/receiver acti
 
 All three native services require the same original source manifest SHA-256. The SoR validates it independently before opening a SQL connection.
 
+## Development-only mTLS certificates (controlled configuration after discovery)
+
+The staging package includes tools/pathfinder_c1_dev_pki.sh, which is NEVER
+called by the CI package builder or automatically by either jail. After
+operator authorization and only on the administrative host, generate a
+NEW 7-day test CA and two certificates in a NEW absolute private directory:
+
+    sh /EXACT/STAGING/PATH/tools/pathfinder_c1_dev_pki.sh --generate-dev-only /OPERATOR/PRIVATE/NEW/PATHFINDER-C1-DEV-PKI-DIR
+
+This refuses overwriting an existing directory and emits only ephemeral
+development credentials. The CA private key MUST stay outside both jails
+and must never be committed to Git or copied to any shared RAM directory.
+Only ingest.key, ingest.crt and ca.crt go to the ingest jail under an
+unprivileged service account; only sor.key, sor.crt and ca.crt go to SoR.
+Leaf keys must remain readable solely to their respective service
+identities. Source manifest, SQL clone and RAM mount verification still
+apply independently. Rotate certificates before the seven-day expiry.
+
 ## Gate 4 — Native shared RAM proof
 
 After a separately reviewed mount/group setup, use the exact seven PF_C1_ variables described in PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md.
