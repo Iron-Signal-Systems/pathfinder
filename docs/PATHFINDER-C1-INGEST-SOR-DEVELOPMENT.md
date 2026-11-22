@@ -217,7 +217,7 @@ fixtures, not a benchmark of the physical C220.
 
 Every test runs on GitHub infrastructure and must **not** be confused with
 native two-jail FreeBSD execution, a restart fault test, or successful
-686k-record ingestion on the actual C220. The authoritative populated
+685,218-record ingestion on the actual C220. The authoritative populated
 Pathfinder database, FI, and the UDM-Pro sensor remain unchanged.
 
 ### Cross-build-only development binaries
@@ -234,6 +234,42 @@ mounts, dedicated service identities, real PostgreSQL clone isolation,
 trust/certificate deployment, startup order, replay, rollback, and
 independent verifier B have been accepted. In particular, adding a
 `nullfs` mount in only one jail cannot establish a working shared RAM system.
+
+
+## Stage 4: independent concurrent verifier B (development)
+
+`pathfinder-c1-sor-dev` now issues a prepared-bundle SQL COMMIT ACK after it
+has independently checked original source identity and confirmed every
+PostgreSQL completion marker. **Full readback verification is NOT in this
+critical path.** An SQL ACK never means independent B acceptance.
+
+The separate `pathfinder-c1-verifier-dev` FreeBSD-only OS process reads
+original frozen source evidence independently, polls durable PostgreSQL batch
+state while ingest continues, and verifies every completed batch. It uses a
+**separate SELECT-only SQL role** and refuses to start if that role can insert
+into any of the sensor evidence tables or create schema objects. No INSERT,
+COPY, UPDATE or DELETE is performed by B.
+
+`IndependentVerifierB` tests cover:
+- source still uncommitted: independently poll with a bounded deadline;
+- complete: run SQL evidence readback and record the verified batch;
+- partial, conflicting or tampered source: fail closed and report NO B PASS;
+- all source files/batches: reconcile exact file/row count totals;
+- typed parent mismatch (such as a modified TLS SNI with intact original
+  JSON) is checked via full-column `EXCEPT ALL` proofs using the
+  **actual PostgreSQL catalog types**;
+- DNS/identity child records are compared in both directions for missing,
+  duplicate, extra and modified rows.
+
+The disposable PostgreSQL 18 CI role `pathfinder_c1_verifier` is
+explicitly created with SELECT only, distinct from `pathfinder_app`.
+The native verifier and the ingest/SoR development binaries are all
+**cross-built but not installed, started or accepted on C220**.
+
+The original JSON archive remains the test source; no receiver development or
+UDM-Pro configuration changes are part of this stage. The independent
+verifier has no authority to promote records into the populated SoR or
+change the receiver's acknowledgment state.
 
 
 ## Subsequent implementation gates
