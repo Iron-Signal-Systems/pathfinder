@@ -8,6 +8,10 @@ import (
  "crypto/tls"
  "crypto/x509"
  "crypto/x509/pkix"
+ "fmt"
+
+ "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensoringest"
+ "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensorsor"
  "encoding/pem"
  "math/big"
  "net/http"
@@ -134,4 +138,44 @@ func TestC1TLSRequiresTrustedIdentityAndNoPlainHTTP(t *testing.T){
  if cfg.MinVersion!=tls.VersionTLS13||cfg.ClientAuth!=tls.RequireAndVerifyClientCert{
   t.Fatal("server TLS downgraded or client authentication disabled")
  }
+}
+
+
+func TestC1TLSLargeBoundedSQLACKForMaximumFamilyBundles(t *testing.T){
+ root:=t.TempDir()
+ if err:=os.Chmod(root,0700);err!=nil{t.Fatal(err)}
+ origin:=originalFor(sensoringest.Health)
+ values:=make(map[string]OriginalBatch,MaxBundleBatches)
+ batches:=make([]Prepared,0,MaxBundleBatches)
+ ids:=make([]string,0,MaxBundleBatches)
+ sourceBytes:=0
+ for i:=0;i<MaxBundleBatches;i++ {
+  in:=origin.Input
+  in.WireBatchID=fmt.Sprintf("large-ack-%03d",i)
+  in.BatchUUID=sensorsor.ID("frozen-import-batch-v1",in.SensorUUID,string(in.Stream),in.WireBatchID)
+  prepared,err:=Prepare(in)
+  if err!=nil{t.Fatal(err)}
+  original:=origin
+  original.Input=in
+  values[in.BatchUUID]=original
+  batches=append(batches,prepared)
+  ids=append(ids,in.BatchUUID)
+  sourceBytes+=prepared.PayloadBytes
+ }
+ b:=Bundle{Format:BundleFormat,Stream:sensoringest.Health,
+  Batches:batches,SourceBytes:sourceBytes,Records:len(batches)}
+ ref,err:=PublishBundle(root,b)
+ if err!=nil{t.Fatal(err)}
+ proc:=&SoRProcessor{ReadRoot:root,Originals:testOriginalReader{values:values},
+  SQL:&testSQLExecutor{states:map[string]SQLBatchState{}}}
+ pki:=makeControlTestPKI(t)
+ server:=makeControlTestServer(t,proc,pki)
+ transport,err:=NewC1HTTPTransport(server.Listener.Addr().String(),
+  "pathfinder-sor.internal",pki.client)
+ if err!=nil{t.Fatal(err)}
+ future,err:=transport.Submit(context.Background(),ref)
+ if err!=nil{t.Fatal(err)}
+ ack,ok:=<-future
+ if !ok{t.Fatal("max-bundle SQL ACK exceeded control response byte limit")}
+ if err:=validateCommitAck(ref,ids,ack);err!=nil{t.Fatal(err)}
 }
