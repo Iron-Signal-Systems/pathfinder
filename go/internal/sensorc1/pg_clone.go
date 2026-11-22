@@ -118,6 +118,32 @@ func(p *PGCloneExecutor) Inspect(ctx context.Context,b sensorsor.BatchSQL)(SQLBa
  }
 }
 
+// VerifyReadOnlyRole must be called by independent verifier B before it
+// evaluates any evidence. The verifier role must have SELECT authority but
+// NO ability to mutate an evidence table or create objects in the schema.
+func(p *PGCloneExecutor)VerifyReadOnlyRole(ctx context.Context)error{
+ if err:=p.VerifyCloneTarget(ctx);err!=nil{return err}
+ query:=`SELECT CASE WHEN
+  NOT has_schema_privilege(current_user,'pathfinder','CREATE')
+  AND NOT has_table_privilege(current_user,'pathfinder.sensor_segment','INSERT')
+  AND NOT has_table_privilege(current_user,'pathfinder.sensor_batch','INSERT')
+  AND NOT has_table_privilege(current_user,'pathfinder.sensor_batch_index_completion','INSERT')
+  AND NOT has_table_privilege(current_user,'pathfinder.sensor_observation','INSERT')
+  AND NOT has_table_privilege(current_user,'pathfinder.sensor_dns_question','INSERT')
+  AND NOT has_table_privilege(current_user,'pathfinder.sensor_dns_record','INSERT')
+  AND NOT has_table_privilege(current_user,'pathfinder.sensor_conntrack_event','INSERT')
+  AND NOT has_table_privilege(current_user,'pathfinder.sensor_identity_snapshot','INSERT')
+  AND NOT has_table_privilege(current_user,'pathfinder.sensor_identity_endpoint','INSERT')
+  AND NOT has_table_privilege(current_user,'pathfinder.sensor_health','INSERT')
+  THEN 'C1_B_READONLY_ROLE_PASS' ELSE 'C1_B_READONLY_ROLE_FAIL' END;`
+ result,err:=p.run(ctx,[]byte(query))
+ if err!=nil{return fmt.Errorf("C1 independent B: read-only SQL role check: %w",err)}
+ if result!="C1_B_READONLY_ROLE_PASS"{
+  return fmt.Errorf("C1 independent B: SQL role is not read-only (%q)",result)
+ }
+ return nil
+}
+
 // Execute is deliberately prohibited unless the explicitly isolated clone
 // has been approved by the operator. It never creates a schema or role.
 func(p *PGCloneExecutor) Execute(ctx context.Context,script []byte)error{
