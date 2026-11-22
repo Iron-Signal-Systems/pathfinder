@@ -36,6 +36,30 @@ type frozenSegment struct {
     audit  sensoringest.Audit
 }
 
+// FrozenArchiveFingerprint canonically hashes original file names and
+// stored-file SHA-256 digests. It commits the exact capture inventory, NOT
+// database state, and is suitable for a manually pinned read-only replay
+// preflight. The filename and hash delimiters match the frozen-check report.
+func FrozenArchiveFingerprint(summary FrozenSummary)(string,error){
+ if len(summary.StoredSHA256)<1{return "",errors.New("C1 frozen fingerprint: empty archive")}
+ names:=make([]string,0,len(summary.StoredSHA256))
+ for name,digest:=range summary.StoredSHA256{
+  if name==""||strings.ContainsAny(name,"\\x00\\r\\n")||
+     filepath.IsAbs(name)||strings.HasPrefix(name,"../")||
+     len(digest)!=64||strings.ToLower(digest)!=digest {
+   return "",fmt.Errorf("C1 frozen fingerprint: invalid manifest entry %q",name)
+  }
+  if _,err:=hex.DecodeString(digest);err!=nil{return "",fmt.Errorf("C1 frozen fingerprint: invalid source digest for %q",name)}
+  names=append(names,name)
+ }
+ sort.Strings(names)
+ h:=sha256.New()
+ for _,name:=range names{
+  fmt.Fprintf(h,"%s\\x00%s\\n",name,summary.StoredSHA256[name])
+ }
+ return hex.EncodeToString(h.Sum(nil)),nil
+}
+
 // ReplayFrozen audits and prepares EVERY original record in registered source
 // files, without writing to the source, receiver or database. Callback errors
 // stop replay. Callback output is not authoritative custody or SQL acceptance.
