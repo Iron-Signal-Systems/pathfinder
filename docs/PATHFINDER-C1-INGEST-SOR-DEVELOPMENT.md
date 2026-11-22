@@ -10,7 +10,7 @@ database schema, or production service has been changed.
 
 ## Agreed target
 
-`
+```
 UDM-Pro and other sensors                    (out of scope for this phase)
              |
              v
@@ -43,7 +43,7 @@ FAST pool: existing PostgreSQL 18.6      (preserve populated SoR)
              |
              v
 Sightings / correlation / Assessments    (later processing; distinct authority)
-`
+```
 
 The temporary replay source for development will be the already-frozen UDM-Pro
 JSONL files. No live sender or new receiver is necessary for the next milestone.
@@ -68,7 +68,7 @@ JSONL files. No live sender or new receiver is necessary for the next milestone.
 * accepts an explicitly scoped, bounded original JSONL batch;
 * validates all records through existing `sensoringest.Validate`;
 * retains exact source bytes in existing `sensorsor.Evidence` projections;
-* carries deterministic batch UUID, source SHA-256, exact byte and row counts,
+* preserves the authority-supplied batch UUID (including existing frozen-import identities), source SHA-256, exact byte and row counts,
   source ordinals, and original stream/schema identity;
 * keeps all DNS/identity child rows attached to their parent evidence;
 * requires 8 MiB / 25,000-record input limits and LF-only JSONL;
