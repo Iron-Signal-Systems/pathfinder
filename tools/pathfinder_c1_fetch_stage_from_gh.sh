@@ -39,7 +39,7 @@ artifact=pathfinder-c1-freebsd15-amd64
 # The chosen run must be a completed successful PUSH workflow for EXACTLY
 # this checkout, not merely the newest workflow on the development branch.
 run_ids=$(gh run list -R "$repository" --workflow "$workflow" --branch "$branch" \
-  --limit 100 --json databaseId,headSha,conclusion \
+  --event push --limit 100 --json databaseId,headSha,conclusion \
   --jq ".[] | select(.headSha == \"$source_sha\" and .conclusion == \"success\") | .databaseId") ||
   fail "cannot query GitHub Actions (check gh auth / Actions read access)"
 run_id=$(printf '%s\n' "$run_ids" | sed -n '1p')
