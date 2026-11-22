@@ -84,3 +84,40 @@ func TestFrozenPreflightRejectsMissingInvalidOrEmptySources(t *testing.T){
     if err:=os.WriteFile(source,[]byte("{bad json}\n"),0600);err!=nil{t.Fatal(err)}
     if _,err:=AuditFrozen(root,sensorID);err==nil{t.Fatal("accepted malformed original source")}
 }
+
+func TestFrozenChunkBoundaryKeepsOriginalSourceOrdinalAndBatchID(t *testing.T){
+    root:=t.TempDir()
+    dir:=filepath.Join(root,"health")
+    if err:=os.MkdirAll(dir,0700);err!=nil{t.Fatal(err)}
+    originalRecord:=cases[sensoringest.Health].raw+"\n"
+    file:=filepath.Join(dir,"health-boundary.jsonl.active")
+    if err:=os.WriteFile(file,[]byte(strings.Repeat(originalRecord,2501)),0600);err!=nil{t.Fatal(err)}
+    audit,err:=AuditFrozen(root,sensorID)
+    if err!=nil{t.Fatal(err)}
+    if audit.Files!=1||audit.Records!=2501||audit.ByStream[sensoringest.Health]!=2501{
+        t.Fatalf("invalid complete audit at 2500-row boundary: %+v",audit)
+    }
+    var batches []Prepared
+    summary,err:=ReplayFrozen(root,sensorID,sensorUUID,func(p Prepared)error{
+        batches=append(batches,p)
+        return nil
+    })
+    if err!=nil{t.Fatal(err)}
+    if summary.Files!=1||summary.Batches!=2||summary.Records!=2501||len(batches)!=2{
+        t.Fatalf("incorrect original chunking: %+v",summary)
+    }
+    if batches[0].Evidence.Count!=2500||batches[0].SegmentOrdinalStart!=1{
+        t.Fatalf("first original chunk metadata wrong: %+v",batches[0])
+    }
+    if batches[1].Evidence.Count!=1||batches[1].SegmentOrdinalStart!=2501{
+        t.Fatalf("second original chunk metadata wrong: %+v",batches[1])
+    }
+    for _,b:=range batches{
+        want:=sensorsor.ID("frozen-import-batch-v1",sensorUUID,string(b.Stream),b.WireBatchID)
+        if b.BatchUUID!=want{t.Fatalf("original frozen importer ID changed: %s",b.BatchUUID)}
+        if err:=ValidatePrepared(b);err!=nil{t.Fatal(err)}
+    }
+    if batches[0].BatchUUID==batches[1].BatchUUID {
+        t.Fatal("separate source chunks reused the same durable batch ID")
+    }
+}
