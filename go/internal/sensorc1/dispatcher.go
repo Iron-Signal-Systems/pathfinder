@@ -38,6 +38,7 @@ type Dispatcher struct {
     mu sync.Mutex
     pending sync.WaitGroup
     failure error
+    sharedGID int // -1 permitted only by the isolated single-process test constructor
 }
 
 func NewDispatcher(root string,transport SQLCommitTransport)(*Dispatcher,error){
@@ -45,8 +46,19 @@ func NewDispatcher(root string,transport SQLCommitTransport)(*Dispatcher,error){
     if transport==nil{return nil,errors.New("C1 SQL dispatch: transport required")}
     return &Dispatcher{
         RAMRoot:root,transport:transport,
-        credits:make(chan struct{},MaxOutstandingHandoffs),
+        credits:make(chan struct{},MaxOutstandingHandoffs),sharedGID:-1,
     },nil
+}
+
+// NewDispatcherForJails is the ONLY supported constructor for actual
+// cross-jail development. The SoR user needs this dedicated shared group;
+// the source tmpfs and both nullfs views must be independently preflighted.
+func NewDispatcherForJails(root string,transport SQLCommitTransport,sharedGID int)(*Dispatcher,error){
+    if sharedGID<1{return nil,errors.New("C1 SQL dispatch: dedicated shared RAM group ID required")}
+    d,err:=NewDispatcher(root,transport)
+    if err!=nil{return nil,err}
+    d.sharedGID=sharedGID
+    return d,nil
 }
 
 // Submit is compatible with Scheduler.FamilySink. It blocks when sixteen
@@ -74,7 +86,7 @@ func(d *Dispatcher)Submit(ctx context.Context,b Bundle)error{
         <-d.credits
         return fmt.Errorf("C1 SQL dispatch: prior uncertain commit: %w",previous)
     }
-    ref,err:=PublishBundle(d.RAMRoot,b)
+    ref,err:=publishBundleWithGroup(d.RAMRoot,b,d.sharedGID)
     if err!=nil{
         <-d.credits
         return err
