@@ -2,6 +2,8 @@ package sensorc1
 
 import (
     "compress/gzip"
+    "crypto/sha256"
+    "encoding/hex"
     "os"
     "path/filepath"
     "strings"
@@ -160,4 +162,17 @@ func TestFrozenArchiveFingerprintOrderIndependentAndStrict(t *testing.T){
    t.Fatal("accepted unsafe/invalid archive manifest")
   }
  }
+}
+
+func TestFrozenArchiveFingerprintUsesCanonicalBinaryDelimiters(t *testing.T){
+ digest:=strings.Repeat("a",64)
+ summary:=FrozenSummary{StoredSHA256:map[string]string{"health/health-original.jsonl.gz":digest}}
+ got,err:=FrozenArchiveFingerprint(summary)
+ if err!=nil{t.Fatal(err)}
+ // Deliberately independent expected bytes. A literal "\\x00" or "\\n"
+ // MUST NOT be accepted as the canonical full-source fingerprint encoding.
+ exact:=[]byte("health/health-original.jsonl.gz\x00"+digest+"\n")
+ sha:=sha256.Sum256(exact)
+ expected:=hex.EncodeToString(sha[:])
+ if got!=expected{t.Fatalf("manifest delimiter encoding drift got=%s expected=%s",got,expected)}
 }
