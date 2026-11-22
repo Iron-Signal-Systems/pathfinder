@@ -166,6 +166,76 @@ runtime is implemented by this slice. The in-memory test is **not** evidence
 of C220, PostgreSQL, crash-recovery, or performance acceptance.
 
 
+## Stage 3: real isolated PostgreSQL, mTLS control, FreeBSD service candidates
+
+The development branch now also includes:
+
+- `pg_clone.go`, `pg_inspect.go` and `pg_readback.go`: PostgreSQL
+  executor over the explicitly configured **Unix-domain socket**. It refuses
+  any database name other than `pathfinder_c1_clone` and requires
+  `I_VERIFIED_AN_ISOLATED_PATHFINDER_C1_CLONE` to execute SQL. Every SQL
+  operation rechecks the target database and expected existing sensor tables.
+  SQL batch status is `new`, `complete`, `partial` or `conflict` based on
+  durable source metadata, custody references and completion markers.
+- SQL readback uses `EXCEPT ALL` in both directions to compare source
+  identity, original JSON, observation time and ordinals, plus **all** DNS
+  question/resource-record and identity endpoint fields. Separate B verification
+  of every other typed parent column is still required before production.
+- `frozen_original.go`: development-only separate audit and original source
+  reader for the **existing frozen UDM-Pro archive**. It re-audits stored-file
+  hashes and reconstructs original batches independently of RAM references.
+  This deliberately uses a RAM-resident cache in the test process; it is **not**
+  the eventual receiver source or a durable source authority.
+- `control_mtls.go`: TLS 1.3 mutual authentication with dedicated trust roots,
+  explicit expected client and server certificate DNS names, bounded control
+  messages and concurrency. Only checksummed RAM object references and exact
+  SQL commit acknowledgments travel over the private control connection.
+  A failed/uncertain SQL result returns NO acknowledgment. A nonce binds each
+  HTTP request/response; durable cross-restart request sequence fencing is
+  still required before live service acceptance.
+- `go/cmd/pathfinder-c1-ingest-dev` and `go/cmd/pathfinder-c1-sor-dev`:
+  **FreeBSD-only, explicitly tagged development service candidates**.
+  Neither starts without explicit operator-supplied source, RAM mount and
+  mTLS configuration. The ingest process does not import a SQL driver.
+  The SoR process rejects non-clone PostgreSQL databases and requires
+  explicit isolated clone authorization.
+- `native_mount_freebsd.go`: the jail process requires the shared RAM
+  directory to be an actual FreeBSD `nullfs` mount with the expected RW
+  (ingest) or RO (SoR) mode. The host must separately prove its source is
+  **tmpfs**; no mount installer or boot persistence is implied.
+
+### Evidence from automated tests
+
+The Go development workflow runs unit tests, the race detector, vet, and
+FreeBSD cross-builds. A separate CI job installs the **existing** PostgreSQL
+18 sensor migrations in an ephemeral Docker database named
+`pathfinder_c1_clone`, runs transactional SQL/COPY, duplicate replay and
+tampered-child readback tests, then destroys the container. The full CI
+pipeline also runs four frozen streams through preparation, buffering,
+TLS control, SoR and actual PostgreSQL; those are miniature captured-stream
+fixtures, not a benchmark of the physical C220.
+
+Every test runs on GitHub infrastructure and must **not** be confused with
+native two-jail FreeBSD execution, a restart fault test, or successful
+686k-record ingestion on the actual C220. The authoritative populated
+Pathfinder database, FI, and the UDM-Pro sensor remain unchanged.
+
+### Cross-build-only development binaries
+
+From `go` in a FreeBSD or Go cross-build environment:
+
+```
+GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 \
+  go build -tags pathfinder_c1_dev ./cmd/pathfinder-c1-ingest-dev ./cmd/pathfinder-c1-sor-dev
+```
+
+They MUST NOT be installed or started on the populated SoR host until host
+mounts, dedicated service identities, real PostgreSQL clone isolation,
+trust/certificate deployment, startup order, replay, rollback, and
+independent verifier B have been accepted. In particular, adding a
+`nullfs` mount in only one jail cannot establish a working shared RAM system.
+
+
 ## Subsequent implementation gates
 
 1. **Frozen-source driver:** stream all nine archive files with exact source
