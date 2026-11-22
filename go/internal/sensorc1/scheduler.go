@@ -62,7 +62,7 @@ func NewScheduler(options SchedulerOptions,sink FamilySink)(*Scheduler,error){
     if sink==nil{return nil,errors.New("C1 scheduler: sink required")}
     if options.MaxFamilySourceBytes<sensoringest.MaxBatchBytes ||
        options.MaxFamilySourceBytes>64<<20 ||
-       options.MaxFamilyRecords<sensoringest.MaxBatchRecords ||
+       options.MaxFamilyRecords<1 ||
        options.MaxFamilyRecords>MaxBundleBatches*sensoringest.MaxBatchRecords ||
        options.MaxFamilyBatches<1 || options.MaxFamilyBatches>MaxBundleBatches ||
        options.Inactivity<=0 {
@@ -80,9 +80,8 @@ func(s *Scheduler)Push(ctx context.Context,p Prepared,at time.Time)error{
     if err:=ctx.Err();err!=nil{return err}
     if at.IsZero(){return errors.New("C1 scheduler: missing clock")}
     if err:=ValidatePrepared(p);err!=nil{return err}
-    if p.PayloadBytes>s.options.MaxFamilySourceBytes ||
-       p.Evidence.Count>s.options.MaxFamilyRecords {
-        return errors.New("C1 scheduler: single source batch exceeds family limit")
+    if p.PayloadBytes>s.options.MaxFamilySourceBytes {
+        return errors.New("C1 scheduler: single source batch exceeds byte ceiling")
     }
     if err:=s.Tick(ctx,at);err!=nil{return err}
     b:=s.buffers[p.Stream]
@@ -99,6 +98,12 @@ func(s *Scheduler)Push(ctx context.Context,p Prepared,at time.Time)error{
     b.records+=p.Evidence.Count
     b.bytes+=p.PayloadBytes
     b.lastActivity=at
+    // A valid receiver batch may be larger than the preferred family row
+    // threshold. It must be emitted intact, not split or rejected; this is
+    // an exceptional capacity flush of its own family only.
+    if b.records>=s.options.MaxFamilyRecords {
+        return s.flush(ctx,p.Stream)
+    }
     return nil
 }
 
