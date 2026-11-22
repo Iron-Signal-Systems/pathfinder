@@ -77,7 +77,19 @@ func mustSHABytes(hexDigest string)[]byte{
 // PublishBundle is intentionally volatile, with an atomic no-overwrite link.
 // Before jail deployment, an independent native FreeBSD check must prove
 // root is host tmpfs presented RW only to the ingest jail.
+// PublishBundle is for single-process isolated tests; it inherits the
+// producer group. FreeBSD cross-jail services use PublishBundleWithGroup.
 func PublishBundle(root string,b Bundle)(BundleReference,error){
+    return publishBundleWithGroup(root,b,-1)
+}
+
+// PublishBundleWithGroup assigns the SoR-readable shared group before the
+// object becomes visible. Never fall back to world-readable permissions.
+func PublishBundleWithGroup(root string,b Bundle,sharedGID int)(BundleReference,error){
+    if sharedGID<1{return BundleReference{},errors.New("C1 bundle: non-root shared RAM GID required")}
+    return publishBundleWithGroup(root,b,sharedGID)
+}
+func publishBundleWithGroup(root string,b Bundle,sharedGID int)(BundleReference,error){
     var zero BundleReference
     if err:=checkRoot(root);err!=nil{return zero,err}
     if err:=b.Validate();err!=nil{return zero,err}
@@ -93,6 +105,12 @@ func PublishBundle(root string,b Bundle)(BundleReference,error){
     tmp,err:=os.CreateTemp(root,".pf-c1-part-")
     if err!=nil{return zero,err}
     defer os.Remove(tmp.Name())
+    if sharedGID>=0 {
+        if err:=tmp.Chown(-1,sharedGID);err!=nil{
+            tmp.Close()
+            return zero,fmt.Errorf("C1 bundle: cannot set shared RAM group: %w",err)
+        }
+    }
     if err:=tmp.Chmod(0640);err!=nil{tmp.Close();return zero,err}
     n,err:=tmp.Write(raw)
     if err!=nil||n!=len(raw){tmp.Close();return zero,fmt.Errorf("C1 bundle: temporary write failed: %v",err)}
