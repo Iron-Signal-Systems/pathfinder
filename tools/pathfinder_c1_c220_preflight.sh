@@ -30,7 +30,7 @@ need_path() {
 : "${PF_C1_SOR_USER:?PF_C1_SOR_USER must identify the unprivileged SoR service account}"
 
 
-need_path HOST_RAM "$PF_C1_SHARED_GID" "$PF_C1_HOST_RAM"
+need_path HOST_RAM "$PF_C1_HOST_RAM"
 need_path INGEST_RAM "$PF_C1_INGEST_RAM"
 need_path SOR_RAM "$PF_C1_SOR_RAM"
 case "$PF_C1_JAIL_RAM_PATH" in
@@ -139,4 +139,4 @@ jexec -U "$PF_C1_SOR_USER" pathfinder-sor test -r "$PF_C1_JAIL_RAM_PATH" ||
 
 # Does NOT prove source custody, TLS, existing handoff object access,
 # database identity, or actual reboot behavior. No files created.
-printf 'PATHFINDER_C1_C220_RAM_PREFLIGHT_PASS jail_enable=YES ingest=pathfinder-ingest sor=pathfinder-sor host_fstype=tmpfs ingest=nullfs_rw sor=nullfs_ro shared_gid=%s source=%s database_touched=false files_changed=0\n' "$PF_C1_HOST_RAM"
+printf 'PATHFINDER_C1_C220_RAM_PREFLIGHT_PASS jail_enable=YES ingest=pathfinder-ingest sor=pathfinder-sor host_fstype=tmpfs ingest=nullfs_rw sor=nullfs_ro shared_gid=%s source=%s database_touched=false files_changed=0\n' "$PF_C1_SHARED_GID" "$PF_C1_HOST_RAM"
