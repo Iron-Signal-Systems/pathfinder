@@ -54,8 +54,16 @@ func(v IndependentVerifierB)VerifyBatch(ctx context.Context,p Prepared)error{
   if err!=nil{return fmt.Errorf("C1 independent B: PostgreSQL readback preflight: %w",err)}
   switch state{
   case SQLComplete:
-   if err:=v.SQL.Verify(timeoutCtx,plan);err!=nil{
-    return fmt.Errorf("C1 independent B: committed original evidence differs: %w",err)
+   // A real PostgreSQL executor proves ALL typed parent columns, while
+   // the minimal read-only test double uses the smaller Verify contract.
+   if full,ok:=v.SQL.(interface{VerifyComplete(context.Context,SQLBatch)error});ok{
+    if err:=full.VerifyComplete(timeoutCtx,plan);err!=nil{
+     return fmt.Errorf("C1 independent B: full typed SQL proof failed: %w",err)
+    }
+   }else{
+    if err:=v.SQL.Verify(timeoutCtx,plan);err!=nil{
+     return fmt.Errorf("C1 independent B: committed original evidence differs: %w",err)
+    }
    }
    return nil
   case SQLNew:
