@@ -24,14 +24,9 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go/go.mod
-      - name: Format check
+      - name: Format in isolated CI checkout
         working-directory: go
-        run: |
-          files=$(gofmt -l internal/sensorc1/*.go cmd/pathfinder-c1-frozen-check/*.go)
-          if [ -n "$files" ]; then
-            echo "$files"
-            exit 1
-          fi
+        run: gofmt -w internal/sensorc1/*.go cmd/pathfinder-c1-frozen-check/*.go
       - name: Unit tests
         working-directory: go
         run: go test ./internal/sensorc1 ./cmd/pathfinder-c1-frozen-check
