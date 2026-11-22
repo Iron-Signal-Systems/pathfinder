@@ -31,6 +31,7 @@ func run()error{
  sensor:=flags.String("sensor-id","","existing trusted frozen source key")
  uuid:=flags.String("sensor-uuid","","existing registered PostgreSQL sensor UUID")
  ram:=flags.String("ram-dir","","ingest-writable nullfs view of host tmpfs")
+ sharedGID:=flags.Int("ram-shared-gid",0,"dedicated non-root shared group GID for RAM objects")
  addr:=flags.String("sor-address","","private literal IP:port for SoR jail")
  serverDNS:=flags.String("sor-server-dns","","exact SoR mTLS certificate DNS SAN")
  cert:=flags.String("client-cert","","dedicated ingest client certificate")
@@ -41,14 +42,14 @@ func run()error{
  flags.Parse(os.Args[1:])
  if flags.NArg()!=0{return errors.New("unexpected positional arguments")}
  if *archive==""||*sensor==""||*uuid==""||*ram==""||*addr==""||*serverDNS==""||
-    *cert==""||*key==""||*trust==""||*expectedFiles<1||*expectedRecords<1{
+    *cert==""||*key==""||*trust==""||*expectedFiles<1||*expectedRecords<1||*sharedGID<1{
   return errors.New("all source, RAM, mTLS and exact source-count settings required")
  }
  if err:=sensorc1.RequireFreeBSDJailRAM(*ram,false);err!=nil{return err}
  tlsTransport,err:=sensorc1.NewC1HTTPTransport(*addr,*serverDNS,
   sensorc1.C1TLSFiles{Certificate:*cert,PrivateKey:*key,TrustCA:*trust})
  if err!=nil{return err}
- dispatch,err:=sensorc1.NewDispatcher(*ram,tlsTransport)
+ dispatch,err:=sensorc1.NewDispatcherForJails(*ram,tlsTransport,*sharedGID)
  if err!=nil{return err}
  scheduler,err:=sensorc1.NewScheduler(sensorc1.DefaultSchedulerOptions(),dispatch)
  if err!=nil{return err}
