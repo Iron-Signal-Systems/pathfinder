@@ -75,11 +75,11 @@ func processorFixture(t *testing.T)(*SoRProcessor,BundleReference,*testSQLExecut
     return proc,ref,sql,bundle
 }
 
-func TestSoRACKRequiresEveryPostgresCommitAndReadback(t *testing.T){
+func TestSoRACKRequiresEveryPostgresCommitCheckpoint(t *testing.T){
     proc,ref,sql,b:=processorFixture(t)
     ack,err:=proc.ProcessBundle(context.Background(),ref)
     if err!=nil{t.Fatal(err)}
-    if ack.Outcome!="committed"||len(ack.BatchUUIDs)!=2||sql.writes!=2||sql.verifications!=2{
+    if ack.Outcome!="committed"||len(ack.BatchUUIDs)!=2||sql.writes!=2||sql.verifications!=0{
         t.Fatalf("incomplete SQL ACK: %+v, writes=%d verify=%d",ack,sql.writes,sql.verifications)
     }
     if err:=validateCommitAck(ref,[]string{b.Batches[0].BatchUUID,b.Batches[1].BatchUUID},ack);err!=nil{t.Fatal(err)}
@@ -89,8 +89,8 @@ func TestSoRACKRequiresEveryPostgresCommitAndReadback(t *testing.T){
     // A real duplicate must be verified against durable SQL, not re-inserted.
     ack,err=proc.ProcessBundle(context.Background(),ref)
     if err!=nil{t.Fatal(err)}
-    if ack.Outcome!="already_committed"||sql.writes!=2||sql.verifications!=4{
-        t.Fatal("exact complete replay performed SQL writes or skipped readback")
+    if ack.Outcome!="already_committed"||sql.writes!=2||sql.verifications!=0{
+        t.Fatal("exact replay performed SQL writes or blocked on independent B")
     }
 }
 
@@ -107,12 +107,19 @@ func TestSoRPartialAndUnknownOutcomeReturnNoACK(t *testing.T){
         })
     }
 }
-func TestSoRReadbackFailureReturnsNoACK(t *testing.T){
-    proc,ref,sql,_:=processorFixture(t)
+func TestIndependentBFailureDoesNotBlockDurableSQLCommitACK(t *testing.T){
+    proc,ref,sql,bundle:=processorFixture(t)
     sql.failVerify=true
     ack,err:=proc.ProcessBundle(context.Background(),ref)
-    if err==nil||ack.Name!=""{t.Fatalf("readback failure falsely acknowledged: %+v",ack)}
-    if _,err:=ReadBundle(proc.ReadRoot,ref);err!=nil{t.Fatal("uncertain RAM disappeared")}
+    if err!=nil||ack.Outcome!="committed"{
+        t.Fatalf("independent B blocked durable SQL commit: %+v %v",ack,err)
+    }
+    if sql.verifications!=0{t.Fatal("B verification ran serially in SQL worker")}
+    b:=IndependentVerifierB{Originals:proc.Originals,SQL:sql,
+        PollInterval:time.Millisecond,MaxWait:time.Second}
+    if err:=b.VerifyBatch(context.Background(),bundle.Batches[0]);err==nil{
+        t.Fatal("independent B accepted tampered committed evidence")
+    }
 }
 
 type inMemorySoRTransport struct{ processor *SoRProcessor }
