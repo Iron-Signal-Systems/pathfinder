@@ -65,6 +65,15 @@ func(d *Dispatcher)Submit(ctx context.Context,b Bundle)error{
     case d.credits<-struct{}{}:
     case <-ctx.Done():return ctx.Err()
     }
+    // A prior worker may have failed while this producer waited for its
+    // credit. Recheck after acquiring the credit, before publishing work.
+    d.mu.Lock()
+    previous=d.failure
+    d.mu.Unlock()
+    if previous!=nil{
+        <-d.credits
+        return fmt.Errorf("C1 SQL dispatch: prior uncertain commit: %w",previous)
+    }
     ref,err:=PublishBundle(d.RAMRoot,b)
     if err!=nil{
         <-d.credits
