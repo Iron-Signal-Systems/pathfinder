@@ -120,7 +120,7 @@ func(p *PGCloneExecutor) Inspect(ctx context.Context,b sensorsor.BatchSQL)(SQLBa
 
 // VerifyReadOnlyRole must be called by independent verifier B before it
 // evaluates any evidence. The verifier role must have SELECT authority but
-// NO ability to insert/update/delete/truncate or alter evidence through
+// NO table- or column-level ability to insert/update/delete/truncate or alter evidence through
 // REFERENCES/TRIGGER, and no CREATE privilege in the evidence schema.
 func(p *PGCloneExecutor)VerifyReadOnlyRole(ctx context.Context)error{
  if err:=p.VerifyCloneTarget(ctx);err!=nil{return err}
@@ -148,6 +148,17 @@ func(p *PGCloneExecutor)VerifyReadOnlyRole(ctx context.Context)error{
   AND NOT has_table_privilege(current_user,'pathfinder.sensor_identity_snapshot','INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
   AND NOT has_table_privilege(current_user,'pathfinder.sensor_identity_endpoint','INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
   AND NOT has_table_privilege(current_user,'pathfinder.sensor_health','INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+  AND NOT has_any_column_privilege(current_user,'pathfinder.sensor','INSERT, UPDATE, REFERENCES')
+  AND NOT has_any_column_privilege(current_user,'pathfinder.sensor_segment','INSERT, UPDATE, REFERENCES')
+  AND NOT has_any_column_privilege(current_user,'pathfinder.sensor_batch','INSERT, UPDATE, REFERENCES')
+  AND NOT has_any_column_privilege(current_user,'pathfinder.sensor_batch_index_completion','INSERT, UPDATE, REFERENCES')
+  AND NOT has_any_column_privilege(current_user,'pathfinder.sensor_observation','INSERT, UPDATE, REFERENCES')
+  AND NOT has_any_column_privilege(current_user,'pathfinder.sensor_dns_question','INSERT, UPDATE, REFERENCES')
+  AND NOT has_any_column_privilege(current_user,'pathfinder.sensor_dns_record','INSERT, UPDATE, REFERENCES')
+  AND NOT has_any_column_privilege(current_user,'pathfinder.sensor_conntrack_event','INSERT, UPDATE, REFERENCES')
+  AND NOT has_any_column_privilege(current_user,'pathfinder.sensor_identity_snapshot','INSERT, UPDATE, REFERENCES')
+  AND NOT has_any_column_privilege(current_user,'pathfinder.sensor_identity_endpoint','INSERT, UPDATE, REFERENCES')
+  AND NOT has_any_column_privilege(current_user,'pathfinder.sensor_health','INSERT, UPDATE, REFERENCES')
   THEN 'C1_B_READONLY_ROLE_PASS' ELSE 'C1_B_READONLY_ROLE_FAIL' END;`
  result,err:=p.run(ctx,[]byte(query))
  if err!=nil{return fmt.Errorf("C1 independent B: read-only SQL role check: %w",err)}
