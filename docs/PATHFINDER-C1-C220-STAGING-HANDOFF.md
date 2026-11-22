@@ -15,15 +15,24 @@ This is not approval for live ingestion or canonical SoR writes.
 - Verifier B is a separately executing read-only process with a SELECT-only PostgreSQL role and does not block SQL commit acknowledgments.
 - No auto-created clone, role, jail mount, certificate or rc.conf entry is provided or deployed by this branch.
 
-## Gate 1 — Download and verify exact tested FreeBSD binaries
+## Gate 1 — Retrieve exact tested FreeBSD binaries through pathfinder-dev
 
-Once the PUSH workflow on this branch is green for the chosen source commit, download the GitHub Actions artifact named pathfinder-c1-freebsd15-amd64. This artifact is uploaded only after Go/unit/race/vet, FreeBSD cross-build and disposable PostgreSQL 18 tests pass. It contains four FreeBSD/amd64 executables, source BUILD-INFO, SHA256SUMS, read-only inspection scripts and the native mount acceptance runbook.
+**Use the existing `pathfinder-dev` jail as the GitHub checkout and artifact staging point.** No manual host-browser artifact download is required. The staging artifact is a GitHub Actions build output, *not* a tracked Git file: `git pull` updates source and the retrieval script then obtains the independently CI-built binaries. The jail must have `git` and an authenticated `gh` CLI with Actions-read access. Do not install tools, change credentials, or create host paths automatically.
 
-After transfer to a separate C220 staging directory, without starting anything:
+From the existing Pathfinder checkout **inside pathfinder-dev**, after confirming its actual repository path:
 
-    sh /EXACT/STAGING/PATH/tools/pathfinder_c1_verify_stage.sh /EXACT/STAGING/PATH
+    cd /EXISTING/PATHFINDER/CHECKOUT
+    git fetch origin dev/c1-ingest-sor-20261122
+    git switch dev/c1-ingest-sor-20261122
+    git pull --ff-only origin dev/c1-ingest-sor-20261122
+    gh auth status
+    sh tools/pathfinder_c1_fetch_stage_from_gh.sh /ABSOLUTE/NEW/PRIVATE/C1-STAGE
 
-Require PATHFINDER_C1_STAGE_VERIFY_PASS and source_commit equal to the exact chosen green source commit. Otherwise STOP.
+The helper requires a clean tracked checkout, searches successful development workflow runs for the **exact checkout commit**, validates the run's source SHA/branch/result, downloads the named GitHub Actions artifact into a *new* private directory, compares BUILD-INFO against the checkout, and verifies all eleven staged checksums twice. No SQL connection, receiver, runtime jail, or host configuration is changed.
+
+Require `PATHFINDER_C1_DEV_FETCH_PASS` and `PATHFINDER_C1_STAGE_VERIFY_PASS`, then record `source_commit`, `run_id` and the staging directory. A commit without its own successful Actions artifact must STOP until CI finishes; never substitute an older artifact. The generated files are inside the **dev jail** and must not be treated as installed runtime binaries.
+
+When moving to host read-only discovery, first resolve the actual `pathfinder-dev` jail root using FreeBSD host `jls`; access or explicitly copy the verified package to an independently approved **host-visible** staging path without guessing jail root paths or changing the running runtime jails. Reverify the staged files on the host before running Gate 2.
 
 ## Gate 2 — First C220 action: read-only discovery
 

@@ -15,6 +15,8 @@ on:
       - 'tools/test_pathfinder_c1_preflight.sh'
       - 'tools/pathfinder_c1_c220_discover.sh'
       - 'tools/pathfinder_c1_verify_stage.sh'
+      - 'tools/pathfinder_c1_fetch_stage_from_gh.sh'
+      - 'tools/test_pathfinder_c1_fetch_stage.sh'
       - 'tools/pathfinder_c1_build_stage.sh'
       - 'tools/pathfinder_c1_dev_pki.sh'
       - 'docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md'
@@ -59,6 +61,8 @@ jobs:
           sh -n tools/test_pathfinder_c1_preflight.sh
           sh -n tools/pathfinder_c1_c220_discover.sh
           sh -n tools/pathfinder_c1_verify_stage.sh
+          sh -n tools/pathfinder_c1_fetch_stage_from_gh.sh
+          sh -n tools/test_pathfinder_c1_fetch_stage.sh
           sh -n tools/pathfinder_c1_build_stage.sh
           sh -n tools/pathfinder_c1_dev_pki.sh
           sh tools/test_pathfinder_c1_preflight.sh
@@ -180,6 +184,8 @@ jobs:
             "$GITHUB_SHA" "$GITHUB_WORKSPACE/.staging/pathfinder-c1-freebsd15-amd64"
           file "$GITHUB_WORKSPACE/.staging/pathfinder-c1-freebsd15-amd64/bin/"*
           sh "$GITHUB_WORKSPACE/.staging/pathfinder-c1-freebsd15-amd64/tools/pathfinder_c1_verify_stage.sh" \
+            "$GITHUB_WORKSPACE/.staging/pathfinder-c1-freebsd15-amd64"
+          sh tools/test_pathfinder_c1_fetch_stage.sh \
             "$GITHUB_WORKSPACE/.staging/pathfinder-c1-freebsd15-amd64"
       - name: Upload verified DEVELOPMENT-ONLY staging package
         uses: actions/upload-artifact@v4
