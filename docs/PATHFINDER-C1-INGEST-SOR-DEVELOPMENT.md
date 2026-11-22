@@ -356,6 +356,42 @@ cross-compiles the actual FreeBSD executable. **The probe has not been
 executed on C220.** No jail mount installation or service startup is
 performed by these source changes.
 
+## Stage 7: bounded frozen original memory and complete-source preflight
+
+For full historical C1 acceptance the archive is not trusted merely because
+an individual source batch validates. The native ingest now **audits all
+original frozen files before opening an SQL/RAM handoff session**, requiring
+exact file/record totals and presence of all four stream families.
+The subsequent replay rechecks the stored-file SHA-256 for every segment.
+
+Independent verifier B also performs its own original-archive audit and
+checks exact file SHA-256 correspondence to its independent replay before
+reporting PASS. A truncated source is rejected **before any verifier SQL
+evidence checks**.
+
+The SoR and verifier B development source readers cache the reconstructed
+original batch bytes in process memory; these caches are intentionally
+volatile and are not custody. Each process now has a configurable **payload
+cache budget**, default 4 GiB, with the FreeBSD
+`-max-original-cache-mib` flag (1–4096). An archive larger than the
+budget fails without silently dropping source batches. This limit bounds
+retained raw payload bytes, **not** total Go heap or process RSS.
+The actual frozen archive must be measured to determine whether
+a streaming, bounded-memory source index is required before native
+full-record acceptance.
+
+The read-only `pathfinder-c1-frozen-check` tool now reports:
+source-file SHA-256 digests, a deterministic aggregate archive fingerprint,
+per-stream row totals, preparation throughput, process CPU times,
+Go heap snapshot and cumulative allocations. These are not SQL/WAL
+performance results and no actual 685,218-record source has been
+processed on C220 yet.
+
+A new 2,501-record fixture verifies the historical importer's
+2,500-record chunk boundary, source ordinal 2,501, and unique
+deterministic batch IDs. The complete native C220 run still must
+measure wall time, per-process peak RSS, WAL and I/O independently.
+
 ## Subsequent implementation gates
 
 1. **Frozen-source driver:** stream all nine archive files with exact source
