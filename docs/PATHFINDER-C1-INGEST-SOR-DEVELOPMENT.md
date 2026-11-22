@@ -226,7 +226,7 @@ From `go` in a FreeBSD or Go cross-build environment:
 
 ```
 GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 \
-  go build -tags pathfinder_c1_dev ./cmd/pathfinder-c1-ingest-dev ./cmd/pathfinder-c1-sor-dev
+  go build -tags pathfinder_c1_dev ./cmd/pathfinder-c1-ingest-dev ./cmd/pathfinder-c1-sor-dev ./cmd/pathfinder-c1-verifier-dev
 ```
 
 They MUST NOT be installed or started on the populated SoR host until host
@@ -271,6 +271,57 @@ UDM-Pro configuration changes are part of this stage. The independent
 verifier has no authority to promote records into the populated SoR or
 change the receiver's acknowledgment state.
 
+
+## Stage 5: restart recovery and authenticated control replay tests
+
+Actual PostgreSQL 18 fault injection (disposable GitHub Actions clone):
+
+- **SQL COMMIT succeeds; acknowledgment is lost:** no acknowledgment is
+  delivered to ingest, the entire volatile RAM directory is discarded, and a
+  fresh ingest/SoR session reconstructs the original source from the frozen
+  archive. PostgreSQL reports `complete` and retains exactly one completion
+  marker, while independent full typed readback passes.
+- **Transaction abort before COMMIT:** an injected SQL error aborts the
+  transaction. PostgreSQL reports `new`, with no durable completion; the
+  exact original batch is then committed successfully on replay.
+- **Damaged/missing SQL completion:** removing a completion marker in the
+  disposable test database yields `partial`. The SoR refuses an ACK and
+  retains the RAM object. This is fault injection, not an ordinary state
+  created by the atomic SQL writer.
+- **Independent verifier privilege abuse:** even a column-level UPDATE grant
+  causes `VerifyReadOnlyRole` to fail, in addition to table-wide writes and
+  CREATE privileges. SELECT access is required on each evidence table.
+
+The authenticated TLS control endpoint also maintains a **bounded,
+certificate-scoped 30-minute nonce replay registry**. An exact duplicate
+control message is rejected before SQL work; an independently authenticated
+new-nonce retry can reconcile its original batch using PostgreSQL's durable
+identities. The registry is deliberately volatile; it is NOT a durable
+cross-restart request ledger. The immutable batch identities and database
+transactions are the durable idempotency mechanism.
+
+### Safe native C220 host inspection — no configuration changes
+
+`tools/pathfinder_c1_c220_preflight.sh` is a read-only FreeBSD host
+preflight that requires the operator to supply three **explicit absolute**
+paths:
+
+- `PF_C1_HOST_RAM`: actual mounted host `tmpfs` source directory
+- `PF_C1_INGEST_RAM`: jail-root view of that source via `nullfs rw`
+- `PF_C1_SOR_RAM`: jail-root view of that source via `nullfs ro`
+
+It checks both named Pathfinder jails are running and included in enabled
+host jail startup. It verifies that the two nullfs mounts share the same
+original tmpfs source and enforce their intended permissions. It never
+creates, mounts, writes, restarts, or changes service settings and **cannot**
+return PASS until the actual mounts exist. A passing mount preflight still
+does NOT establish correct source archive read-only mounts, SQL clone safety,
+TLS secret ownership, cross-jail execution, reboot persistence, or restart
+acceptance. Those require additional native testing.
+
+**Status:** Dev fault injection passed on isolated PostgreSQL 18; no
+physical power-cycle, native C220 jail test, or full historical replay has
+been performed. The current populated Pathfinder SoR was not touched.
 
 ## Subsequent implementation gates
 
