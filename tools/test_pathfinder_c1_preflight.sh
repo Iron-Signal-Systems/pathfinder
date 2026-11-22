@@ -21,7 +21,14 @@ case "${0##*/}" in
   [ "$1" = "-n" ] || exit 1
   case "$2" in
    jail_enable) printf '%s\n' YES ;;
-   jail_list) printf '%s\n' 'net-core pathfinder-ingest pathfinder-sor' ;;
+   jail_list)
+    if [ "${PF_C1_SIM_JAIL_LIST_EMPTY:-0}" = 1 ]; then
+     printf '\n'
+    elif [ "${PF_C1_SIM_JAIL_LIST_EXCLUDE:-0}" = 1 ]; then
+     printf '%s\n' 'net-core pathfinder-ingest'
+    else
+     printf '%s\n' 'net-core pathfinder-ingest pathfinder-sor'
+    fi ;;
    *) exit 1 ;;
   esac ;;
  jls)
@@ -105,6 +112,15 @@ case "$good" in
  *) echo "C1 MOCK PREFLIGHT FAIL: valid configuration missing full PASS proof" >&2; exit 1 ;;
 esac
 
+# FreeBSD's default empty jail_list enables every configured jail.
+if ! PF_C1_SIM_JAIL_LIST_EMPTY=1 sh "$script" >/dev/null 2>&1; then
+ echo "C1 MOCK PREFLIGHT FAIL: default all-jails startup was refused" >&2
+ exit 1
+fi
+if PF_C1_SIM_JAIL_LIST_EXCLUDE=1 sh "$script" >/dev/null 2>&1; then
+ echo "C1 MOCK PREFLIGHT FAIL: explicitly excluded SoR jail was accepted" >&2
+ exit 1
+fi
 if PF_C1_SHARED_GID=44445 sh "$script" >/dev/null 2>&1; then
  echo "C1 MOCK PREFLIGHT FAIL: mismatched source group accepted" >&2
  exit 1
@@ -121,4 +137,4 @@ if PF_C1_JAIL_RAM_PATH="/var/run/has space" sh "$script" >/dev/null 2>&1; then
  echo "C1 MOCK PREFLIGHT FAIL: unsafe mount path accepted" >&2
  exit 1
 fi
-printf 'PATHFINDER_C1_MOCK_PREFLIGHT_PASS positive=1 negative=4 host_modified=false\n'
+printf 'PATHFINDER_C1_MOCK_PREFLIGHT_PASS positive=2 negative=5 host_modified=false\n'
