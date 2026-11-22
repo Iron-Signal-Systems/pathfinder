@@ -162,9 +162,45 @@ records**. For acceptance of *that original archive only*, require:
 - record rate, CPU, RSS, WAL, filesystem I/O and SQL overhead are measured;
 - original populated SoR is unchanged before, during and after.
 
-The current source-only verifier builds a RAM cache of frozen batches
-for development; record its peak RSS during this full run. Do **not**
-assume the small CI fixture proves acceptable C220 memory usage.
+The development SoR and verifier original-source readers each cache raw
+batch payloads in process memory, with an independent **4 GiB maximum
+cached-payload budget** (default). This is not an RSS limit: runtime maps,
+temporary typed projectors, and decompression buffers consume additional
+memory. The FreeBSD SoR and verifier binaries accept
+`-max-original-cache-mib` (1–4096) and fail without starting if the audited
+archive exceeds that payload allowance. The executables print their
+cached original batch count and payload bytes at startup.
+
+Before any SQL handoff, the native ingest program now runs
+`AuditFrozen`, rejecting missing files, incorrect record counts, an
+absent one of the four stream families, malformed original JSON, or
+unsuccessful file SHA-256 validation. It then re-audits the original files
+during `ReplayFrozen`; no incomplete capture is silently accepted as a
+complete historical replay.
+
+For baseline **read-only** source measurements, run the existing
+`pathfinder-c1-frozen-check` binary (no SQL access) with the operator's
+verified original sensor UUID and archive path:
+
+```sh
+go run ./cmd/pathfinder-c1-frozen-check \
+  -root /VERIFIED/READONLY/FROZEN/UDM/ARCHIVE \
+  -sensor-id REGISTERED_SENSOR_ID \
+  -sensor-uuid REGISTERED_SENSOR_UUID \
+  -expect-files 9 \
+  -expect-records 685218
+```
+
+It reports per-stream counts, exact stored-file SHA-256 digests, a stable
+whole-archive manifest fingerprint, elapsed time, throughput, CPU time,
+Go heap allocation snapshot and cumulative Go allocation volume. These
+are **not** PostgreSQL commit-rate or total peak-RSS measurements.
+The original 685,218-record archive must be present to record real values;
+none are inferred from CI test fixtures.
+
+Record per-process peak RSS externally during the native full run,
+including SQL writers and both independent source readers. Do **not**
+assume the four-stream CI fixture proves acceptable C220 memory usage.
 
 ## Completion status
 
