@@ -11,6 +11,7 @@ import (
     "errors"
     "fmt"
     "regexp"
+    "reflect"
 
     "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensoringest"
     "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensorsor"
@@ -130,16 +131,29 @@ func ValidatePrepared(p Prepared) error {
     if idxRaw < 0 { return errors.New("C1 prepared: missing raw record column") }
     h := sha256.New()
     size := 0
+    // Rebuild the entire typed projection from original raw-record bytes. A
+    // valid handoff digest alone does not bind DNS/identity child rows, IPs,
+    // timestamps, or record family to the untrusted prepared JSON object.
+    expected := sensorsor.New()
+    ctx := sensorsor.Context{SensorUUID:p.SensorUUID,BatchUUID:p.BatchUUID,StartOrdinal:1}
     for i,row := range table.Rows {
         if len(row) != len(sensorsor.Schema[tableName]) { return errors.New("C1 prepared: malformed source row") }
         raw := []byte(row[idxRaw])
         rec,err:=sensoringest.Validate(p.Stream,raw,p.SensorID)
         if err != nil || rec.SchemaVersion!=p.SchemaVersion { return fmt.Errorf("C1 prepared: invalid raw record %d",i+1) }
         if err:=assertSourceOrdinal(p.Stream,row,i+1,p.SegmentOrdinalStart+int64(i),p.SensorUUID,p.BatchUUID);err!=nil{return err}
+        if err:=expected.Append(string(p.Stream),ctx,p.SegmentOrdinalStart+int64(i),raw);err!=nil {
+            return fmt.Errorf("C1 prepared: source re-projection %d: %w",i+1,err)
+        }
         h.Write(raw);h.Write([]byte{'\n'});size+=len(raw)+1
     }
     if size != p.PayloadBytes || hex.EncodeToString(h.Sum(nil)) != p.PayloadSHA256 {
         return errors.New("C1 prepared: original payload hash or byte count mismatch")
+    }
+    if p.Evidence.Count!=expected.Count ||
+       !p.Evidence.First.Equal(expected.First) || !p.Evidence.Last.Equal(expected.Last) ||
+       !reflect.DeepEqual(p.Evidence.Tables,expected.Tables) {
+        return errors.New("C1 prepared: projected source or child evidence differs from original")
     }
     return nil
 }
