@@ -42,7 +42,8 @@ done
 )
 chmod 0755 "$stage/bin/pathfinder-c1-frozen-check"
 for entry in pathfinder_c1_c220_preflight.sh \
-    pathfinder_c1_c220_discover.sh pathfinder_c1_verify_stage.sh; do
+    pathfinder_c1_c220_discover.sh pathfinder_c1_verify_stage.sh \
+    pathfinder_c1_dev_pki.sh; do
     cp "$repo_root/tools/$entry" "$stage/tools/$entry"
     chmod 0755 "$stage/tools/$entry"
 done
@@ -62,6 +63,7 @@ printf 'source_commit=%s\ntarget=freebsd/amd64\nstatus=unreleased_development_te
    tools/pathfinder_c1_c220_preflight.sh \
    tools/pathfinder_c1_c220_discover.sh \
    tools/pathfinder_c1_verify_stage.sh \
+   tools/pathfinder_c1_dev_pki.sh \
    docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md \
    docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md > SHA256SUMS
  sh tools/pathfinder_c1_verify_stage.sh "$stage"
