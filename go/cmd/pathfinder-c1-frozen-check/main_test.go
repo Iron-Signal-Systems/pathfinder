@@ -21,6 +21,15 @@ func TestC1FrozenCheckReadOnly(t *testing.T){
     if !strings.Contains(out.String(),"PATHFINDER_C1_FROZEN_PREP_PASS files=1 batches=1 records=1"){
         t.Fatal(out.String())
     }
+    for _,field:=range []string{
+        "FROZEN_PREP_RESOURCE_METRICS cpu_user_seconds=",
+        "heap_alloc_mib=","total_go_alloc_mib=",
+        "FROZEN_SOURCE_FILE path=",
+        "FROZEN_SOURCE_MANIFEST_SHA256 value=",
+        "FROZEN_STREAM observations records=1",
+    } {
+        if !strings.Contains(out.String(),field){t.Fatalf("missing %q from frozen report: %s",field,out.String())}
+    }
     got,err:=os.ReadFile(path);if err!=nil{t.Fatal(err)}
     if string(got)!=raw{t.Fatal("original evidence changed")}
 }
