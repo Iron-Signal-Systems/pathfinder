@@ -213,13 +213,14 @@ set -eu
 pass=/usr/local/etc/pathfinder/secrets/postgresql-app.pgpass
 counts=$(PGPASSFILE="$pass" /usr/local/bin/psql -XAt -v ON_ERROR_STOP=1 \
     -h 127.0.0.1 -p 5432 -U pathfinder_app -d pathfinder -c "
-SELECT
- (SELECT count(*) FROM pathfinder.sensor_observation)::text || '\''| '\'' ||
- (SELECT count(*) FROM pathfinder.sensor_conntrack_event)::text || '\''| '\'' ||
- (SELECT count(*) FROM pathfinder.sensor_identity_snapshot)::text || '\''| '\'' ||
- (SELECT count(*) FROM pathfinder.sensor_health)::text;
+SELECT concat_ws('|',
+ (SELECT count(*) FROM pathfinder.sensor_observation),
+ (SELECT count(*) FROM pathfinder.sensor_conntrack_event),
+ (SELECT count(*) FROM pathfinder.sensor_identity_snapshot),
+ (SELECT count(*) FROM pathfinder.sensor_health)
+);
 ")
-[ "$counts" = "569671| 111842| 2446| 1259" ] || {
+[ "$counts" = "569671|111842|2446|1259" ] || {
     echo "STOP: database counts not reconciled: $counts" >&2
     exit 1
 }
