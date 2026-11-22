@@ -57,15 +57,20 @@ command -v jexec >/dev/null 2>&1 || die "jexec command missing"
 command -v stat >/dev/null 2>&1 || die "stat command missing"
 
 [ "$(sysrc -n jail_enable)" = YES ] || die "jail_enable is not YES"
-jail_list=$(sysrc -n jail_list)
-case " $jail_list " in
-    *" pathfinder-ingest "*) ;;
-    *) die "pathfinder-ingest missing from jail_list" ;;
-esac
-case " $jail_list " in
-    *" pathfinder-sor "*) ;;
-    *) die "pathfinder-sor missing from jail_list" ;;
-esac
+# On FreeBSD, an UNSET/empty jail_list means all configured jails
+# are started when jail_enable=YES. An explicitly restricted list must
+# contain both roles; live jls below is mandatory in either case.
+jail_list=$(sysrc -n jail_list 2>/dev/null || true)
+if [ -n "$jail_list" ]; then
+    case " $jail_list " in
+        *" pathfinder-ingest "*) ;;
+        *) die "pathfinder-ingest excluded by explicit jail_list" ;;
+    esac
+    case " $jail_list " in
+        *" pathfinder-sor "*) ;;
+        *) die "pathfinder-sor excluded by explicit jail_list" ;;
+    esac
+fi
 
 jls -j pathfinder-ingest jid >/dev/null 2>&1 || die "pathfinder-ingest jail not running"
 jls -j pathfinder-sor jid >/dev/null 2>&1 || die "pathfinder-sor jail not running"
