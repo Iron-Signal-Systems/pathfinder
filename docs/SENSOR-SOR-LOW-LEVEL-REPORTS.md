@@ -4,6 +4,29 @@
 These are not polished end-user reports, dashboards, threat conclusions, or
 production-ready connection correlations.
 
+## Unique SNI hostname diagnostic
+
+Source query: `go/queries/sensor_unique_sni.sql` (existing committed query).
+Runner: `tools/pathfinder_c220_unique_sni_report.sh`.
+
+Lists each distinct normalized, nonempty TLS SNI hostname observed in the
+PostgreSQL sensor SoR, one per line, followed by `UNIQUE_SNI_COUNT`.
+It reads only committed observations, without parsing the frozen archive or
+attempting DNS, flow, or identity correlation.
+
+After pulling `dev/sensor-ingest-20261121`, run **on C220 as root**:
+
+```sh
+sh /fast/jails/roots/dev-pathfinder/home/jwood/pathfinder/tools/pathfinder_c220_unique_sni_report.sh
+```
+
+The script runs the existing SNI-only importer query mode inside
+`pathfinder-sor` using local PostgreSQL at `127.0.0.1:5432`.
+The historical frozen import previously reconciled **685,218 rows** and
+returned **78 unique SNI names**; subsequent reporting reads the current
+committed database and may return a different count if new observations
+are ingested. This runner performs no ingestion, DDL, or other writes.
+
 ## SNI → TO / FROM IP diagnostic
 
 File: `go/queries/sensor_sni_ip_diagnostic.sql`
