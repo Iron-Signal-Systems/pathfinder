@@ -41,9 +41,11 @@ case "$PF_C1_SHARED_GID" in
     *[!0-9]* | '') die "shared RAM GID must be a positive integer" ;;
     0) die "shared RAM group cannot be root/wheel" ;;
 esac
-case "$PF_C1_HOST_RAM $PF_C1_INGEST_RAM $PF_C1_SOR_RAM $PF_C1_JAIL_RAM_PATH" in
-    *' '* | *"	"*) die "preflight mount paths cannot contain whitespace" ;;
-esac
+for checked_path in "$PF_C1_HOST_RAM" "$PF_C1_INGEST_RAM" "$PF_C1_SOR_RAM" "$PF_C1_JAIL_RAM_PATH"; do
+    case "$checked_path" in
+        *' '* | *"	"*) die "preflight mount paths cannot contain whitespace" ;;
+    esac
+done
 
 
 [ "$(uname -s)" = FreeBSD ] || die "this audit only runs on FreeBSD"
