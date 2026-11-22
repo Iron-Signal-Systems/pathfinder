@@ -426,6 +426,45 @@ until the C220 restart and process-overlap acceptance proves otherwise.
 A lost network response is handled through durable SQL state and replay,
 not a volatile RAM acknowledgment or a claimed source-custody copy.
 
+## Stage 9: cross-controller PostgreSQL transaction collision recovery
+
+The existing `sensorsor.BatchSQL.SQLScript` already holds PostgreSQL
+`pg_advisory_xact_lock` keyed on the original sensor, stream and wire
+batch identity inside its source/children/completion transaction. Two
+**separate** SoR process instances can each see `new` before competing
+for that PostgreSQL transaction lock. After the first commits, the
+second transaction may deliberately raise the immutable replay guard,
+even though the original batch now has a durable completion marker.
+
+The C1 `SoRProcessor.commitOne` now handles an uncertain/failed
+`Execute` response by issuing a **fresh exact SQL provenance inspection**:
+
+- If the requested original batch is `complete` with exact same
+  immutable source metadata, report it as `already_committed`, not a
+  second new SQL commit.
+- If the state is `new`, `partial`, `conflict`, invalid or cannot
+  be queried, return an error and **NO SQL ACK**, preserving replay
+  responsibility. Do not erase any custody or RAM evidence.
+- This reinspection remains local to the SoR SQL ACK path. Independent
+  typed verifier B still performs its read-only evidence check in
+  parallel and does not delay commit confirmation.
+
+Disposable PostgreSQL 18 tests include two **independent SoR controller
+objects**, each with its own Go synchronization gates and mTLS listener,
+sharing only PostgreSQL and the disposable original source/RAM fixture.
+A barrier forces both to complete `Inspect(new)` before either
+`Execute` runs. The exact-source test requires one durable SQL
+completion, one `committed` ACK and one `already_committed` ACK.
+The conflicting-source test instead gives the same batch identity
+different original bytes and requires one accepted commit, one refused
+ACK, a `conflict` state for the rejected source and one completion
+marker.
+
+This is proof of **independent SQL connections and controller objects**
+on a shared CI host, **not** proof of distinct FreeBSD jail processes,
+host restart, or C220 deployment. The planned C220 test remains a
+separate acceptance requirement.
+
 ## Subsequent implementation gates
 
 1. **Frozen-source driver:** stream all nine archive files with exact source
