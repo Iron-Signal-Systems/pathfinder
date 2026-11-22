@@ -49,8 +49,13 @@ func NewPGCloneExecutor(c PGCloneConfig,run PGRun)(*PGCloneExecutor,error){
     strings.ContainsAny(c.Role," \t\n\r") {
   return nil,errors.New("C1 PostgreSQL: require absolute psql/socket paths and an explicit role")
  }
- if c.PasswordFile!="" && !filepath.IsAbs(c.PasswordFile) {
-  return nil,errors.New("C1 PostgreSQL: password file must use absolute path")
+ if c.PasswordFile!="" {
+  if !filepath.IsAbs(c.PasswordFile){return nil,errors.New("C1 PostgreSQL: password file must use absolute path")}
+  stat,err:=os.Lstat(c.PasswordFile)
+  if err!=nil{return nil,fmt.Errorf("C1 PostgreSQL: credential file unavailable: %w",err)}
+  if !stat.Mode().IsRegular() || stat.Mode().Perm()&0077!=0 {
+   return nil,errors.New("C1 PostgreSQL: credential file must be regular and owner-only")
+  }
  }
  if run==nil {
   run=makeLocalPGRun(c)
