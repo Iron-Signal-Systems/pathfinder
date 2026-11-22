@@ -62,6 +62,9 @@ DEV
         test -z "$(ls -A "$target")" || { echo "STOP: archive target not empty"; exit 1; }
         mount -t nullfs -o ro "$source" "$target"
     fi
+    mount -p | awk -v s="$source" -v d="$target" \
+        '$1==s && $2==d && $3=="nullfs" && $4 ~ /(^|,)ro(,|$)/ {found=1} END {exit !found}' ||
+        { echo "STOP: frozen source mount is not confirmed read-only"; exit 1; }
     jexec pathfinder-sor /bin/sh -c '
         set -eu
         test -r /mnt/udm-pro-20261120-0500EST/file-manifest.txt
@@ -207,7 +210,20 @@ sni)
     echo "===== UNIQUE SNI HOSTNAMES FROM COMMITTED POSTGRESQL ROWS ====="
     jexec pathfinder-sor /bin/sh <<'SOR'
 set -eu
-PGPASSFILE=/usr/local/etc/pathfinder/secrets/postgresql-app.pgpass \
+pass=/usr/local/etc/pathfinder/secrets/postgresql-app.pgpass
+counts=$(PGPASSFILE="$pass" /usr/local/bin/psql -XAt -v ON_ERROR_STOP=1 \
+    -h 127.0.0.1 -p 5432 -U pathfinder_app -d pathfinder -c "
+SELECT
+ (SELECT count(*) FROM pathfinder.sensor_observation)::text || '\''| '\'' ||
+ (SELECT count(*) FROM pathfinder.sensor_conntrack_event)::text || '\''| '\'' ||
+ (SELECT count(*) FROM pathfinder.sensor_identity_snapshot)::text || '\''| '\'' ||
+ (SELECT count(*) FROM pathfinder.sensor_health)::text;
+")
+[ "$counts" = "569671| 111842| 2446| 1259" ] || {
+    echo "STOP: database counts not reconciled: $counts" >&2
+    exit 1
+}
+PGPASSFILE="$pass" \
  /usr/local/sbin/sensor-sor-import \
  -mode sni -psql /usr/local/bin/psql \
  -db-host 127.0.0.1 -db-port 5432 \
