@@ -323,6 +323,39 @@ acceptance. Those require additional native testing.
 physical power-cycle, native C220 jail test, or full historical replay has
 been performed. The current populated Pathfinder SoR was not touched.
 
+## Stage 6: explicit FreeBSD shared group and real RAM access probe
+
+Native integration safety has been strengthened without changing any C220
+service configuration. The ingest service now **requires**
+`-ram-shared-gid`, backed by `NewDispatcherForJails`. All bundles are
+published with mode `0640` and the explicitly assigned shared non-root group
+**before** publication. Group-assignment errors fail closed; there is no
+`0644` fallback. Separate user identities remain mandatory.
+
+The host read-only script `tools/pathfinder_c1_c220_preflight.sh` now
+requires explicit:
+
+- mounted host tmpfs and ingest RW/SoR RO jail-root nullfs paths;
+- common jail-visible RAM path and dedicated positive shared GID;
+- distinct unprivileged ingest and SoR service accounts in that group;
+- actual ability for ingest to traverse/write its RAM view, and SoR to
+  traverse/read its view, without creating or deleting anything.
+
+For real end-to-end mount permission proof, the **FreeBSD-only**
+`pathfinder-c1-ram-probe-dev` executable provides three operator-driven
+operations: ingest **publish** (a random 64-byte `0640` file), SoR **read**
+(verifies actual bytes, digest, file type, mode and GID from its RO mount),
+and ingest **remove** (only the exact matching temporary probe).
+It carries no records, custody, PostgreSQL state, credentials, or
+payload from the sensor.
+
+Full instructions and failure gates are in
+[`PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md`](PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md).
+CI exercises the group ownership and probe refusal paths, and
+cross-compiles the actual FreeBSD executable. **The probe has not been
+executed on C220.** No jail mount installation or service startup is
+performed by these source changes.
+
 ## Subsequent implementation gates
 
 1. **Frozen-source driver:** stream all nine archive files with exact source
