@@ -126,6 +126,12 @@ func TestActualPostgres18ReadOnlyVerifierB(t *testing.T){
   SQL:readonly,PollInterval:time.Millisecond,MaxWait:5*time.Second,
  }
  if err:=verifier.VerifyBatch(ctx,p);err!=nil{t.Fatal(err)}
+ // Tamper with a TYPED column only. The raw JSON and record counts remain
+ // unchanged, so the independent B full-schema EXCEPT ALL proof must catch it.
+ pgAdminIntegration(t,fmt.Sprintf("UPDATE pathfinder.sensor_observation SET tls_sni='tampered.invalid' WHERE batch_id='%s'::uuid;",p.BatchUUID))
+ if err:=verifier.VerifyBatch(ctx,p);err==nil{
+  t.Fatal("independent B falsely accepted modified typed TLS SNI with intact raw JSON")
+ }
  if err:=readonly.Execute(ctx,[]byte("BEGIN; INSERT INTO pathfinder.sensor_batch_index_completion VALUES (NULL); COMMIT;"));err==nil{
   t.Fatal("read-only verifier permitted SQL Execute")
  }
