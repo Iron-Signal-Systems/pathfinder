@@ -90,6 +90,45 @@ a reference to an authenticated mTLS control channel, provide real cross-jail
 processes, or perform any PostgreSQL transaction. It must not be deployed or
 presented as an accepted C1 backend.
 
+## Frozen-source preparation tool (no writes)
+
+The current branch contains `go/cmd/pathfinder-c1-frozen-check/main.go`
+and `go/internal/sensorc1/frozen.go`. The reader:
+
+- audits **all** registered `.jsonl.gz` and `.jsonl.active` sensor files;
+- rejects unsupported sensor paths but ignores unrelated archive metadata;
+- verifies original stored-file SHA-256 again during the projection pass;
+- uses the **same** 4 MiB / 2,500-row chunks as `sensor-sor-import`;
+- reproduces exact historical `frozen-v1-<stored-hash>-<chunk-index>`
+  batch names and `frozen-import-batch-v1` UUIDs;
+- validates original source bytes, ordinals and four stream totals;
+- produces a PASS and measured preparation rate only after all files pass;
+- never publishes RAM objects, opens PostgreSQL, changes the receiver,
+  changes the source archive, or advances a delivery checkpoint.
+
+From `dev-pathfinder`, after fetching this development branch and using the
+**actual existing archive path, registered sensor key and database sensor UUID**:
+
+```
+cd /home/jwood/pathfinder/go
+go test ./internal/sensorc1 ./cmd/pathfinder-c1-frozen-check
+go vet ./internal/sensorc1 ./cmd/pathfinder-c1-frozen-check
+
+go run ./cmd/pathfinder-c1-frozen-check \
+  -root /PATH/TO/EXISTING/FROZEN/UDM/ARCHIVE \
+  -sensor-id 'REGISTERED_SENSOR_KEY' \
+  -sensor-uuid 'EXISTING_POSTGRESQL_SENSOR_UUID' \
+  -expect-files 9 -expect-records 685218
+```
+
+The expected file/record counts apply to the original November 20 frozen
+archive. Change expectations when processing a new, larger capture.
+Do NOT generate a new sensor UUID to satisfy this command.
+
+**This is a read-only development correctness/throughput test.** It is not
+SQL ingestion, and does not complete cross-jail, replay, or live acceptance.
+
+
 ## Subsequent implementation gates
 
 1. **Frozen-source driver:** stream all nine archive files with exact source
