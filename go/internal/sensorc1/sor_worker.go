@@ -104,8 +104,26 @@ func(s *SoRProcessor)commitOne(ctx context.Context,plan sensorsor.BatchSQL)(bool
     case SQLNew:
         script,err:=plan.SQLScript()
         if err!=nil{return false,fmt.Errorf("SQL plan: %w",err)}
-        if err:=s.SQL.Execute(ctx,script);err!=nil{
-            return false,fmt.Errorf("SQL commit uncertain: %w",err)
+        if executeErr:=s.SQL.Execute(ctx,script);executeErr!=nil{
+            // Another SoR process can commit this SAME original key while
+            // this process waits on the SQLScript transaction advisory lock.
+            // The second transaction then fails its replay guard, although
+            // the first transaction is already durable. Re-inspect the exact
+            // original identity after any uncertain execution outcome:
+            // "complete" is a safe replay, never a second write. Any other
+            // state (or failed read) stays unacknowledged.
+            stateAfter,inspectErr:=s.SQL.Inspect(ctx,plan)
+            if inspectErr!=nil{
+                return false,fmt.Errorf("SQL commit uncertain: %w; durable replay inspection failed: %v",executeErr,inspectErr)
+            }
+            switch stateAfter {
+            case SQLComplete:
+                return false,nil // an exact durable replay, not this writer's commit
+            case SQLNew,SQLPartial,SQLConflict:
+                return false,fmt.Errorf("SQL commit uncertain: %w; durable state=%s",executeErr,stateAfter)
+            default:
+                return false,fmt.Errorf("SQL commit uncertain: %w; invalid durable state=%q",executeErr,stateAfter)
+            }
         }
         wrote=true
     case SQLPartial,SQLConflict:
