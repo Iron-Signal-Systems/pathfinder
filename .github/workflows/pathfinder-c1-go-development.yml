@@ -12,6 +12,7 @@ on:
       - 'go/cmd/pathfinder-c1-ram-probe-dev/**'
       - '.github/workflows/pathfinder-c1-go-development.yml'
       - 'tools/pathfinder_c1_c220_preflight.sh'
+      - 'tools/test_pathfinder_c1_preflight.sh'
   pull_request:
     branches:
       - dev/sensor-ingest-20261121
@@ -48,6 +49,8 @@ jobs:
       - name: Read-only FreeBSD host audit script syntax
         run: |
           sh -n tools/pathfinder_c1_c220_preflight.sh
+          sh -n tools/test_pathfinder_c1_preflight.sh
+          sh tools/test_pathfinder_c1_preflight.sh
           # The script MUST refuse execution without explicit host paths.
           if sh tools/pathfinder_c1_c220_preflight.sh >/dev/null 2>&1; then
             echo "C1 host preflight unexpectedly accepted missing paths"
