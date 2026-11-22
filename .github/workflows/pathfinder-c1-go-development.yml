@@ -17,6 +17,9 @@ on:
       - 'tools/pathfinder_c1_verify_stage.sh'
       - 'tools/pathfinder_c1_build_stage.sh'
       - 'tools/pathfinder_c1_dev_pki.sh'
+      - 'docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md'
+      - 'docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md'
+      - 'docs/PATHFINDER-C1-INGEST-SOR-DEVELOPMENT.md'
   pull_request:
     branches:
       - dev/sensor-ingest-20261121
