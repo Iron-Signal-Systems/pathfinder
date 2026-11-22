@@ -10,6 +10,7 @@ on:
       - 'go/cmd/pathfinder-c1-sor-dev/**'
       - 'go/cmd/pathfinder-c1-verifier-dev/**'
       - '.github/workflows/pathfinder-c1-go-development.yml'
+      - 'tools/pathfinder_c1_c220_preflight.sh'
   pull_request:
     branches:
       - dev/sensor-ingest-20261121
@@ -42,6 +43,14 @@ jobs:
       - name: Vet
         working-directory: go
         run: go vet ./internal/sensorc1 ./cmd/pathfinder-c1-frozen-check
+      - name: Read-only FreeBSD host audit script syntax
+        run: |
+          sh -n tools/pathfinder_c1_c220_preflight.sh
+          # The script MUST refuse execution without explicit host paths.
+          if sh tools/pathfinder_c1_c220_preflight.sh >/dev/null 2>&1; then
+            echo "C1 host preflight unexpectedly accepted missing paths"
+            exit 1
+          fi
       - name: FreeBSD build syntax check only
         working-directory: go
         run: |
