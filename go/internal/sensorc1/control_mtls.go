@@ -26,7 +26,10 @@ import (
 // can produce an SQLCommitAck. This does not replace the receiver protocol.
 const ControlVersion = 1
 const ControlPath = "/v1/c1/sql-commit"
+// Requests carry only a RAM reference. SQL ACKs may carry up to 256 exact
+// original UUIDs, so the RESPONSE needs a larger independent bounded cap.
 const MaxControlBytes = 8192
+const MaxControlResponseBytes = 64 << 10
 const MaxControlInflight = MaxOutstandingHandoffs
 
 var noncePattern=regexp.MustCompile(`^[0-9a-f]{32}$`)
@@ -199,8 +202,8 @@ func(t *C1HTTPTransport)Submit(ctx context.Context,ref BundleReference)(<-chan S
   if resp.StatusCode!=http.StatusOK||!strings.HasPrefix(resp.Header.Get("Content-Type"),"application/json"){
    return
   }
-  raw,err:=io.ReadAll(io.LimitReader(resp.Body,MaxControlBytes+1))
-  if err!=nil||len(raw)>MaxControlBytes{return}
+  raw,err:=io.ReadAll(io.LimitReader(resp.Body,MaxControlResponseBytes+1))
+  if err!=nil||len(raw)>MaxControlResponseBytes{return}
   var result ControlResponse
   if err:=json.Unmarshal(raw,&result);err!=nil{return}
   if result.Version!=ControlVersion||result.Nonce!=nonce{return}
