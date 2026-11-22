@@ -129,6 +129,43 @@ Do NOT generate a new sensor UUID to satisfy this command.
 SQL ingestion, and does not complete cross-jail, replay, or live acceptance.
 
 
+## Stage 2: continuous buffering, bounded handoff and SQL ownership contract
+
+Implemented in this branch (Go-only development):
+
+- `scheduler.go` is the single-owner, four-family, continuous buffering scheduler.
+  Only its **own** capacity, idle timer, or true end-of-input flushes a
+  family. It defaults to 16 MiB source bytes, 8,192 rows, sixteen source
+  batches, and 30 seconds inactivity per family. Large valid source batches
+  flush intact, never split parents from their DNS/identity children.
+- `bundle.go` packages multiple complete prepared batches from one stream and
+  uses the same checksummed volatile 128 MiB object boundary. RAM names are
+  unpredictable, and complete files are published with no-overwrite link.
+- `dispatcher.go` caps outstanding RAM handoffs at sixteen. Sending a RAM
+  reference is **not** a SQL commit. Only a matching SQL COMMIT ACK (stream,
+  exact original batch UUIDs and order, digest, byte object name, row count)
+  can trigger producer-side RAM reclamation. Missing/rejected ACK leaves
+  RAM unreclaimed and blocks the session; on restart original custody and
+  durable PostgreSQL progress determine what to replay.
+- `sor_plan.go` reopens an independently supplied original custody batch and
+  compares all source and child projections before generating the existing
+  transactional SQL batch plan, including indexed-completion marker.
+- `sor_worker.go` provides the SoR-only processing controller, requiring
+  independent original source resolution, PostgreSQL batch-state inspection,
+  exact transactional execution, and postcommit SQL readback. Only then does
+  it produce the per-bundle SQL COMMIT ACK. A partial, conflicted or uncertain
+  SQL outcome produces **no** ACK.
+- Tests cover family independence, inactivity/capacity flush, failure retention,
+  tampered child evidence, bounded RAM, forged/uncertain commit acknowledgments,
+  partial SQL commits, readback rejection and an in-memory end-to-end pipeline.
+
+Important: `SoRSQLExecutor` and `OriginalSourceReader` are currently **interfaces
+with tested fakes**. No actual PostgreSQL connection, independently verified
+live custody resolver, FreeBSD service, mTLS control listener, or cross-jail
+runtime is implemented by this slice. The in-memory test is **not** evidence
+of C220, PostgreSQL, crash-recovery, or performance acceptance.
+
+
 ## Subsequent implementation gates
 
 1. **Frozen-source driver:** stream all nine archive files with exact source
