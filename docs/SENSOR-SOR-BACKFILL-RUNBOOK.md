@@ -29,6 +29,69 @@ The importer has three modes: `dry-run`, `import` and `sni`. Source files remain
 - A private absolute custody directory writable by the importer account; not on the nine read-only files. The importer creates `segments/` and `batches/` with permissions 0700, files 0600.
 - Do not run `install.sh` expecting an all-in-one deployment: the current repository installer intentionally refuses incomplete construction. Do not confuse this frozen-capture import with full product installation acceptance.
 
+## C220 frozen-capture backfill: local-only procedure
+
+The C220 **physical copy** backfill runs exclusively within the existing
+\`pathfinder-sor\` jail after a one-time local executable/archive staging step.
+No TCP connection from \`dev-pathfinder\` to PostgreSQL is needed. Do **not**
+add net-core PF rules, a database-jail default route, or inter-jail PostgreSQL
+HBA exceptions for this historical task. Existing IPv4 bind
+\`127.0.0.1,172.20.10.12\` may remain; the backfill connects to
+\`127.0.0.1:5432\` only.
+
+Prerequisites on C220: \`pathfinder-sor\` running FreeBSD with PostgreSQL 18.6
+running at its existing \`/var/db/pathfinder/pgdata\` and separately mounted
+\`/var/db/pathfinder/pgwal\`; \`dev-pathfinder\` has the development checkout,
+Go, and the previously validated frozen physical capture; the nine
+\`JSONL\` files are unchanged and total **685,218 records**.
+
+On the **C220 host as root**, pull the branch (inside the development jail)
+and run the repository-owned host script one stage at a time:
+
+\`\`\`sh
+jexec -U jwood dev-pathfinder /bin/sh -c '
+  cd /home/jwood/pathfinder
+  git pull --ff-only origin dev/sensor-ingest-20261121
+'
+
+script=/fast/jails/roots/dev-pathfinder/home/jwood/pathfinder/tools/pathfinder_c220_local_backfill.sh
+
+sh "$script" stage
+sh "$script" bootstrap
+sh "$script" migrate
+sh "$script" register
+sh "$script" import
+# The DB-only SNI query can be repeated independently:
+sh "$script" sni
+\`\`\`
+
+- \`stage\` builds and tests the already-validated Go importer and migration
+  binary in \`dev-pathfinder\`; copies just the two executables and committed
+  SQL files into \`pathfinder-sor\`; mounts the **original physical archive**
+  read-only into \`pathfinder-sor\` as
+  \`/mnt/udm-pro-20261120-0500EST\`. This is a **temporary** nullfs mount;
+  source files and the jail's existing fstab are not changed.
+- \`bootstrap\` creates fresh database \`pathfinder\`, nonlogin owner,
+  controlled migrator, append-only application role, local SCRAM secrets,
+  and a configuration specific to the frozen backfill. **It intentionally
+  refuses already-existing roles/database** rather than resetting them.
+- \`migrate\` runs the embedded Pathfinder schema migrations \`0001–0009\`
+  with the repo's migration runner, dry-run first, then commit.
+- \`register\` records the exact trusted \`Gateway\` sensor identity with
+  migration authority only; no unauthenticated sensor registration.
+- \`import\` reads the mounted source locally; copies into persistent private
+  custody at \`/var/db/pathfinder/sensor-custody\` **outside PGDATA and WAL**;
+  and uses the local PostgreSQL client, transactions, and full record
+  reconciliation before printing unique SNI from the committed relational
+  column. The import can be rerun for deterministic batch replay verification.
+- \`sni\` executes the committed distinct-SNI query against PostgreSQL
+  directly; it does **not** parse source JSON.
+
+If a stage fails, stop and inspect its output. Don't recreate roles,
+discard custody receipts, or reset the database to get past a failure.
+The final distinct TLS SNI result must not be called complete until
+\`DATABASE_ARCHIVE_RECONCILIATION_PASS\` and the query both succeed.
+
 ## C220 read-only acceptance preflight (first required operator action)
 
 The repository includes `tools/verify_sensor_sor_frozen.sh` for the frozen archive. It reads the first observation sensor ID as a consistency key for **dry-run only**, then audits and projects all nine source files with the exact expected row count. This does not register a trusted sensor, contact PostgreSQL, write custody, or modify the archived source. Run in `dev-pathfinder` as jail root because some frozen source files are root:wheel 0640.
