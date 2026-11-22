@@ -10,8 +10,10 @@ import (
  "os/exec"
  "strings"
  "testing"
+ "time"
 
  "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensoringest"
+ "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensorsor"
 )
 
 func requireIntegration(t *testing.T)string{
@@ -89,5 +91,42 @@ func TestRealSQLPlansAreDeterministicForSameSource(t *testing.T){
   a,err:=BuildSoRSQL(p,original);if err!=nil{t.Fatal(err)}
   b,err:=BuildSoRSQL(p,original);if err!=nil{t.Fatal(err)}
   if !bytes.Equal(a,b){t.Fatal("original SQL projection is nondeterministic")}
+ }
+}
+
+func TestActualPostgres18ReadOnlyVerifierB(t *testing.T){
+ wrapper:=requireIntegration(t)
+ ctx:=context.Background()
+ original:=originalFor(sensoringest.Observations)
+ original.Input.WireBatchID="independent-b-smoke"
+ original.Input.BatchUUID=sensorsor.ID("frozen-import-batch-v1",
+  original.Input.SensorUUID,string(original.Input.Stream),original.Input.WireBatchID)
+ p,err:=Prepare(original.Input);if err!=nil{t.Fatal(err)}
+ plan,err:=BuildSoRBatch(p,original);if err!=nil{t.Fatal(err)}
+ pgAdminIntegration(t,fmt.Sprintf(`INSERT INTO pathfinder.sensor (sensor_id,sensor_key,sensor_type,display_name)
+ VALUES ('%s','udm-test','unifi','Pathfinder C1 PG18 isolated test')
+ ON CONFLICT (sensor_key) DO NOTHING;`,sensorUUID))
+ appCfg:=testCloneConfig()
+ appCfg.PSQLBinary=wrapper
+ appCfg.WriteAuthorization=CloneWriteAuthorization
+ app,err:=NewPGCloneExecutor(appCfg,nil);if err!=nil{t.Fatal(err)}
+ state,err:=app.Inspect(ctx,plan);if err!=nil{t.Fatal(err)}
+ if state==SQLNew{
+  sql,err:=plan.SQLScript();if err!=nil{t.Fatal(err)}
+  if err:=app.Execute(ctx,sql);err!=nil{t.Fatal(err)}
+ }else if state!=SQLComplete{t.Fatalf("unexpected initial B source state %q",state)}
+ cfg:=testCloneConfig()
+ cfg.PSQLBinary=wrapper
+ cfg.Role="pathfinder_c1_verifier"
+ cfg.WriteAuthorization="" // verifier MUST have no write authorization.
+ readonly,err:=NewPGCloneExecutor(cfg,nil);if err!=nil{t.Fatal(err)}
+ if err:=readonly.VerifyReadOnlyRole(ctx);err!=nil{t.Fatal(err)}
+ verifier:=IndependentVerifierB{
+  Originals:testOriginalReader{values:map[string]OriginalBatch{p.BatchUUID:original}},
+  SQL:readonly,PollInterval:time.Millisecond,MaxWait:5*time.Second,
+ }
+ if err:=verifier.VerifyBatch(ctx,p);err!=nil{t.Fatal(err)}
+ if err:=readonly.Execute(ctx,[]byte("BEGIN; INSERT INTO pathfinder.sensor_batch_index_completion VALUES (NULL); COMMIT;"));err==nil{
+  t.Fatal("read-only verifier permitted SQL Execute")
  }
 }
