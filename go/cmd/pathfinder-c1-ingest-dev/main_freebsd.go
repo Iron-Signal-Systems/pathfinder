@@ -16,6 +16,7 @@ import (
  "time"
 
  "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensorc1"
+ "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensoringest"
 )
 
 func main(){
@@ -45,6 +46,22 @@ func run()error{
     *cert==""||*key==""||*trust==""||*expectedFiles<1||*expectedRecords<1||*sharedGID<1{
   return errors.New("all source, RAM, mTLS and exact source-count settings required")
  }
+ // Validate the ENTIRE frozen source before initiating any RAM/SQL
+ // handoff. Fail closed on a missing stream, missing file or altered count.
+ sourceAudit,err:=sensorc1.AuditFrozen(*archive,*sensor)
+ if err!=nil{return fmt.Errorf("C1 ingest original source preflight: %w",err)}
+ if sourceAudit.Files!=*expectedFiles||sourceAudit.Records!=*expectedRecords{
+  return fmt.Errorf("C1 ingest source count preflight FAILED files=%d/%d records=%d/%d; no SQL work submitted",
+    sourceAudit.Files,*expectedFiles,sourceAudit.Records,*expectedRecords)
+ }
+ for _,family:=range []sensoringest.Stream{
+  sensoringest.Observations,sensoringest.Conntrack,
+  sensoringest.Identity,sensoringest.Health,
+ }{
+  if sourceAudit.ByStream[family]<1{return fmt.Errorf("C1 ingest preflight: source family %s missing",family)}
+ }
+ fmt.Printf("PATHFINDER_C1_INGEST_SOURCE_PREFLIGHT_PASS files=%d records=%d SQL_handoffs=0\n",
+   sourceAudit.Files,sourceAudit.Records)
  if err:=sensorc1.RequireFreeBSDJailRAM(*ram,false);err!=nil{return err}
  tlsTransport,err:=sensorc1.NewC1HTTPTransport(*addr,*serverDNS,
   sensorc1.C1TLSFiles{Certificate:*cert,PrivateKey:*key,TrustCA:*trust})
