@@ -36,6 +36,7 @@ func run()error{
  ram:=flags.String("ram-dir","","SoR read-only nullfs view of host tmpfs")
  pgSocket:=flags.String("postgres-socket","","local PostgreSQL Unix socket directory")
  pgRole:=flags.String("postgres-role","","unprivileged SoR SQL role")
+ pgPassfile:=flags.String("postgres-passfile","","optional absolute owner-only PostgreSQL PGPASSFILE; no password in environment")
  psql:=flags.String("psql","/usr/local/bin/psql","absolute PostgreSQL 18 psql binary")
  cert:=flags.String("server-cert","","dedicated SoR server TLS certificate")
  key:=flags.String("server-key","","dedicated SoR TLS private key")
@@ -62,7 +63,7 @@ func run()error{
  if err!=nil{return fmt.Errorf("independent frozen original source: %w",err)}
  postgres,err:=sensorc1.NewPGCloneExecutor(sensorc1.PGCloneConfig{
   PSQLBinary:*psql,SocketDirectory:*pgSocket,Database:sensorc1.CloneDatabase,
-  Role:*pgRole,WriteAuthorization:approval,
+  Role:*pgRole,PasswordFile:*pgPassfile,WriteAuthorization:approval,
  },nil)
  if err!=nil{return err}
  ctx,stop:=signal.NotifyContext(context.Background(),syscall.SIGTERM,syscall.SIGINT)
