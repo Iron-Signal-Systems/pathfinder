@@ -99,7 +99,7 @@ jobs:
           export PATHFINDER_C1_PG_TEST_WRAPPER="$wrapper"
           go test -tags pathfinder_pg18_integration \
             -count=1 -v ./internal/sensorc1 \
-            -run 'TestActualPostgres18|TestRealSQLPlansAreDeterministic'
+            -run 'TestActualPostgres18|TestRealSQLPlansAreDeterministic|TestFullC1'
       - name: Always destroy disposable PostgreSQL container
         if: always()
         shell: bash
