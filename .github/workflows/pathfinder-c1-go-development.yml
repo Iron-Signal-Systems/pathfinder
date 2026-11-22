@@ -1,0 +1,48 @@
+name: Pathfinder C1 Go development checks
+on:
+  push:
+    branches:
+      - dev/c1-ingest-sor-20261122
+    paths:
+      - 'go/internal/sensorc1/**'
+      - 'go/cmd/pathfinder-c1-frozen-check/**'
+      - '.github/workflows/pathfinder-c1-go-development.yml'
+  pull_request:
+    branches:
+      - dev/sensor-ingest-20261121
+    paths:
+      - 'go/internal/sensorc1/**'
+      - 'go/cmd/pathfinder-c1-frozen-check/**'
+permissions:
+  contents: read
+jobs:
+  go-c1-development:
+    name: Pure Go contract tests (NOT FreeBSD runtime acceptance)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+      - name: Format check
+        working-directory: go
+        run: |
+          files=$(gofmt -l internal/sensorc1/*.go cmd/pathfinder-c1-frozen-check/*.go)
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+      - name: Unit tests
+        working-directory: go
+        run: go test ./internal/sensorc1 ./cmd/pathfinder-c1-frozen-check
+      - name: Race tests
+        working-directory: go
+        run: go test -race ./internal/sensorc1 ./cmd/pathfinder-c1-frozen-check
+      - name: Vet
+        working-directory: go
+        run: go vet ./internal/sensorc1 ./cmd/pathfinder-c1-frozen-check
+      - name: FreeBSD build syntax check only
+        working-directory: go
+        run: |
+          GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/pathfinder-c1-frozen-check
+          GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build ./internal/sensorc1
