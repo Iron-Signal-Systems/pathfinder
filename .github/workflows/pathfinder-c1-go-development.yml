@@ -16,6 +16,7 @@ on:
       - 'tools/pathfinder_c1_c220_discover.sh'
       - 'tools/pathfinder_c1_verify_stage.sh'
       - 'tools/pathfinder_c1_build_stage.sh'
+      - 'tools/pathfinder_c1_dev_pki.sh'
   pull_request:
     branches:
       - dev/sensor-ingest-20261121
@@ -56,10 +57,26 @@ jobs:
           sh -n tools/pathfinder_c1_c220_discover.sh
           sh -n tools/pathfinder_c1_verify_stage.sh
           sh -n tools/pathfinder_c1_build_stage.sh
+          sh -n tools/pathfinder_c1_dev_pki.sh
           sh tools/test_pathfinder_c1_preflight.sh
           # The script MUST refuse execution without explicit host paths.
           if sh tools/pathfinder_c1_c220_preflight.sh >/dev/null 2>&1; then
             echo "C1 host preflight unexpectedly accepted missing paths"
+            exit 1
+          fi
+      - name: Isolated seven-day development CA certificate validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          trap 'rm -rf "$tmp"' EXIT
+          sh tools/pathfinder_c1_dev_pki.sh --generate-dev-only "$tmp/pathfinder-c1-dev"
+          openssl verify -purpose sslserver \
+            -CAfile "$tmp/pathfinder-c1-dev/ca.crt" "$tmp/pathfinder-c1-dev/sor.crt"
+          openssl verify -purpose sslclient \
+            -CAfile "$tmp/pathfinder-c1-dev/ca.crt" "$tmp/pathfinder-c1-dev/ingest.crt"
+          if sh tools/pathfinder_c1_dev_pki.sh --generate-dev-only "$tmp/pathfinder-c1-dev" 2>/dev/null; then
+            echo "C1 PKI generator unexpectedly overwrote existing private keys"
             exit 1
           fi
       - name: FreeBSD build syntax check only
