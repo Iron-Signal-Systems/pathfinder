@@ -12,20 +12,23 @@ esac
 
 for path in bin/pathfinder-c1-ingest-dev bin/pathfinder-c1-sor-dev \
     bin/pathfinder-c1-verifier-dev bin/pathfinder-c1-ram-probe-dev \
+    bin/pathfinder-c1-frozen-check \
+    bin/pathfinder-c1-frozen-check \
     tools/pathfinder_c1_c220_preflight.sh \
     tools/pathfinder_c1_c220_discover.sh \
     tools/pathfinder_c1_verify_stage.sh \
     docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md \
+    docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md \
     BUILD-INFO SHA256SUMS; do
     [ -f "$stage/$path" ] && [ ! -L "$stage/$path" ] ||
         { echo "PATHFINDER_C1_STAGE_FAIL missing or symlink $path" >&2; exit 1; }
 done
 [ -x "$stage/bin/pathfinder-c1-ingest-dev" ] ||
     { echo "PATHFINDER_C1_STAGE_FAIL binary permissions" >&2; exit 1; }
-[ "$(wc -l < "$stage/SHA256SUMS" | tr -d ' ')" -eq 8 ] ||
+[ "$(wc -l < "$stage/SHA256SUMS" | tr -d ' ')" -eq 10 ] ||
     { echo "PATHFINDER_C1_STAGE_FAIL checksum manifest item count" >&2; exit 1; }
 
-# Exactly eight named files. No dynamic paths, traversal, or shell evaluation.
+# Exactly ten named files. No dynamic paths, traversal, or shell evaluation.
 count=0
 while IFS= read -r line || [ -n "$line" ]; do
     expected=$(printf '%s\n' "$line" | awk '{print $1}')
@@ -33,9 +36,11 @@ while IFS= read -r line || [ -n "$line" ]; do
     case "$relative" in
         bin/pathfinder-c1-ingest-dev|bin/pathfinder-c1-sor-dev|\
 bin/pathfinder-c1-verifier-dev|bin/pathfinder-c1-ram-probe-dev|\
+bin/pathfinder-c1-frozen-check|\
 tools/pathfinder_c1_c220_preflight.sh|tools/pathfinder_c1_c220_discover.sh|\
 tools/pathfinder_c1_verify_stage.sh|\
-docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md) ;;
+docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md|\
+docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md) ;;
         *) echo "PATHFINDER_C1_STAGE_FAIL unrecognized manifest path" >&2; exit 1 ;;
     esac
     case "$expected" in
@@ -55,7 +60,7 @@ docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md) ;;
         { echo "PATHFINDER_C1_STAGE_FAIL checksum mismatch: $relative" >&2; exit 1; }
     count=$((count+1))
 done < "$stage/SHA256SUMS"
-[ "$count" -eq 8 ] ||
+[ "$count" -eq 10 ] ||
     { echo "PATHFINDER_C1_STAGE_FAIL incomplete checksums" >&2; exit 1; }
 # Ensure each required file is included once (no duplicate manifest entries).
 expected_names=$(printf '%s\n' \
@@ -64,11 +69,12 @@ expected_names=$(printf '%s\n' \
     tools/pathfinder_c1_c220_preflight.sh \
     tools/pathfinder_c1_c220_discover.sh \
     tools/pathfinder_c1_verify_stage.sh \
-    docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md | LC_ALL=C sort)
+    docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md \
+    docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md | LC_ALL=C sort)
 actual_names=$(awk '{print $2}' "$stage/SHA256SUMS" | LC_ALL=C sort)
 [ "$actual_names" = "$expected_names" ] ||
     { echo "PATHFINDER_C1_STAGE_FAIL missing or duplicate checksum entry" >&2; exit 1; }
 
 grep -q '^target=freebsd/amd64$' "$stage/BUILD-INFO" ||
     { echo "PATHFINDER_C1_STAGE_FAIL build target mismatch" >&2; exit 1; }
-printf 'PATHFINDER_C1_STAGE_VERIFY_PASS target=freebsd/amd64 files=8 services_started=0 SQL_writes=0\n'
+printf 'PATHFINDER_C1_STAGE_VERIFY_PASS target=freebsd/amd64 files=10 services_started=0 SQL_writes=0\n'
