@@ -6,8 +6,6 @@ import (
  "fmt"
  "os"
  "path/filepath"
- "sync"
- "time"
 
  "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensoringest"
  "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensorsor"
@@ -102,7 +100,6 @@ func NewFrozenOriginalReader(root,sensorID,sensorUUID string)(*FrozenOriginalRea
 }
 
 var _ OriginalSourceReader=(*FrozenOriginalReader)(nil)
-var _ sync.Locker=(*sync.Mutex)(nil) // compile-time ordinary Go sync contract
 
 func(r *FrozenOriginalReader)OpenOriginal(ctx context.Context,p Prepared)(OriginalBatch,error){
  var zero OriginalBatch
@@ -123,9 +120,3 @@ func(r *FrozenOriginalReader)OpenOriginal(ctx context.Context,p Prepared)(Origin
  return original,nil
 }
 
-// An explicit dev-only source status for profiling. Do NOT treat as a
-// sender ACK, SQL commit, independent B proof, or durable custody receipt.
-func(r *FrozenOriginalReader)IndexedBatches()(int,time.Time){
- if r==nil{return 0,time.Time{}}
- return len(r.entries),time.Time{}
-}
