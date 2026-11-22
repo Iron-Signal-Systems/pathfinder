@@ -70,6 +70,19 @@ func TestPreparedTamperRejected(t *testing.T) {
         q:=p;q.PayloadSHA256=strings.Repeat("0",64)
         if err:=ValidatePrepared(q);err==nil{t.Fatal("changed source hash accepted")}
     })
+    t.Run("DNS child tamper",func(t *testing.T){
+        q:=p
+        ev:=*p.Evidence
+        ev.Tables=map[string]*sensorsor.Columns{}
+        for k,v:=range p.Evidence.Tables { ev.Tables[k]=v }
+        table:=*ev.Tables["sensor_dns_question"]
+        table.Rows=append([][]string(nil),table.Rows...)
+        table.Rows[0]=append([]string(nil),table.Rows[0]...)
+        table.Rows[0][3]="tampered.invalid"
+        ev.Tables["sensor_dns_question"]=&table
+        q.Evidence=&ev
+        if err:=ValidatePrepared(q);err==nil{t.Fatal("changed DNS child accepted")}
+    })
     t.Run("ordinal",func(t *testing.T){
         q:=p;table:=*p.Evidence.Tables["sensor_observation"]
         table.Rows=append([][]string(nil),table.Rows...)
