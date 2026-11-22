@@ -8,6 +8,7 @@ on:
       - 'go/cmd/pathfinder-c1-frozen-check/**'
       - 'go/cmd/pathfinder-c1-ingest-dev/**'
       - 'go/cmd/pathfinder-c1-sor-dev/**'
+      - 'go/cmd/pathfinder-c1-verifier-dev/**'
       - '.github/workflows/pathfinder-c1-go-development.yml'
   pull_request:
     branches:
@@ -17,6 +18,7 @@ on:
       - 'go/cmd/pathfinder-c1-frozen-check/**'
       - 'go/cmd/pathfinder-c1-ingest-dev/**'
       - 'go/cmd/pathfinder-c1-sor-dev/**'
+      - 'go/cmd/pathfinder-c1-verifier-dev/**'
 permissions:
   contents: read
 jobs:
@@ -45,7 +47,7 @@ jobs:
         run: |
           GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/pathfinder-c1-frozen-check
           GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build ./internal/sensorc1
-          GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build -tags pathfinder_c1_dev ./cmd/pathfinder-c1-ingest-dev ./cmd/pathfinder-c1-sor-dev
+          GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build -tags pathfinder_c1_dev ./cmd/pathfinder-c1-ingest-dev ./cmd/pathfinder-c1-sor-dev ./cmd/pathfinder-c1-verifier-dev
 
   postgres18-clone:
     name: PostgreSQL 18 disposable clone integration (NO C220 access)
@@ -94,6 +96,12 @@ jobs:
           docker exec -i pathfinder-c1-pg18 \
             psql -X -v ON_ERROR_STOP=1 -U postgres -d pathfinder_c1_clone \
             < go/cmd/pathfinder/migrations/0009-sensor-batch-replay-indexes.sql
+          docker exec -i pathfinder-c1-pg18 \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d pathfinder_c1_clone <<'SQL'
+          CREATE ROLE pathfinder_c1_verifier LOGIN;
+          GRANT USAGE ON SCHEMA pathfinder TO pathfinder_c1_verifier;
+          GRANT SELECT ON ALL TABLES IN SCHEMA pathfinder TO pathfinder_c1_verifier;
+          SQL
       - name: Test real PG18 SQL commits, duplicate replay and child tamper
         working-directory: go
         shell: bash
