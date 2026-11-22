@@ -27,7 +27,10 @@ func RequireFreeBSDJailRAM(path string,readOnly bool)error{
  if typ.String()!="nullfs"{
   return fmt.Errorf("C1 RAM: expected FreeBSD jail nullfs, got %q",typ.String())
  }
- mountedReadOnly:=st.Flags&syscall.MNT_RDONLY!=0
+ // FreeBSD sys/mount.h MNT_RDONLY=0x00000001; Go's stdlib syscall
+ // package does not export this flag on the cross-compilation toolchain.
+ const freeBSDMountReadOnly=0x00000001
+ mountedReadOnly:=st.Flags&freeBSDMountReadOnly!=0
  if mountedReadOnly!=readOnly{
   return fmt.Errorf("C1 RAM: jail nullfs RO=%t expected=%t",mountedReadOnly,readOnly)
  }
