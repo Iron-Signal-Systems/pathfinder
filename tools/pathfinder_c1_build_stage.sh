@@ -34,12 +34,20 @@ for entry in pathfinder-c1-ingest-dev pathfinder-c1-sor-dev \
     )
     chmod 0755 "$stage/bin/$entry"
 done
+(
+ cd "$repo_root/go"
+ GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build \
+   -trimpath -buildvcs=false -ldflags='-s -w -buildid=' \
+   -o "$stage/bin/pathfinder-c1-frozen-check" "./cmd/pathfinder-c1-frozen-check"
+)
+chmod 0755 "$stage/bin/pathfinder-c1-frozen-check"
 for entry in pathfinder_c1_c220_preflight.sh \
     pathfinder_c1_c220_discover.sh pathfinder_c1_verify_stage.sh; do
     cp "$repo_root/tools/$entry" "$stage/tools/$entry"
     chmod 0755 "$stage/tools/$entry"
 done
 cp "$repo_root/docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md" "$stage/docs/"
+cp "$repo_root/docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md" "$stage/docs/"
 printf 'source_commit=%s\ntarget=freebsd/amd64\nstatus=unreleased_development_test_only\nreceiver_included=false\n' \
     "$want_sha" > "$stage/BUILD-INFO"
 
@@ -50,10 +58,12 @@ printf 'source_commit=%s\ntarget=freebsd/amd64\nstatus=unreleased_development_te
    bin/pathfinder-c1-sor-dev \
    bin/pathfinder-c1-verifier-dev \
    bin/pathfinder-c1-ram-probe-dev \
+   bin/pathfinder-c1-frozen-check \
    tools/pathfinder_c1_c220_preflight.sh \
    tools/pathfinder_c1_c220_discover.sh \
    tools/pathfinder_c1_verify_stage.sh \
-   docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md > SHA256SUMS
+   docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md \
+   docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md > SHA256SUMS
  sh tools/pathfinder_c1_verify_stage.sh "$stage"
 )
-printf 'PATHFINDER_C1_FREEBSD_STAGE_BUILD_PASS source=%s target=freebsd/amd64 binaries=4 SQL_writes=0 services_started=0\n' "$want_sha"
+printf 'PATHFINDER_C1_FREEBSD_STAGE_BUILD_PASS source=%s target=freebsd/amd64 binaries=5 SQL_writes=0 services_started=0\n' "$want_sha"
