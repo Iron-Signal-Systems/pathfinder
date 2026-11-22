@@ -31,6 +31,11 @@ func TestFrozenReplayPreservesImportedIDsAndCounts(t *testing.T){
         if err:=f.Close();err!=nil{t.Fatal(err)}
     }
     if err:=os.WriteFile(filepath.Join(root,"file-manifest.txt"),[]byte("metadata"),0600);err!=nil{t.Fatal(err)}
+    audit,err:=AuditFrozen(root,sensorID)
+    if err!=nil{t.Fatal(err)}
+    if audit.Files!=4||audit.Records!=4||len(audit.StoredSHA256)!=4 {
+        t.Fatalf("incorrect full source preflight before SQL: %+v",audit)
+    }
     count:=0
     observed:=map[sensoringest.Stream]int{}
     summary,err:=ReplayFrozen(root,sensorID,sensorUUID,func(p Prepared)error{
@@ -42,6 +47,11 @@ func TestFrozenReplayPreservesImportedIDsAndCounts(t *testing.T){
         return nil
     })
     if err!=nil{t.Fatal(err)}
+    for sourceName,sourceSHA:=range audit.StoredSHA256{
+        if summary.StoredSHA256[sourceName]!=sourceSHA {
+            t.Fatalf("archive source changed between preflight and playback: %s",sourceName)
+        }
+    }
     if summary.Files!=4 || summary.Records!=4 || summary.Batches!=4 || count!=4 || len(summary.StoredSHA256)!=4 {
         t.Fatalf("invalid archive summary %+v",summary)
     }
@@ -63,4 +73,14 @@ func TestFrozenReplayPropagatesConsumerFailure(t *testing.T){
     expected:=os.ErrPermission
     _,err:=ReplayFrozen(root,sensorID,sensorUUID,func(Prepared)error{return expected})
     if err==nil||!strings.Contains(err.Error(),expected.Error()){t.Fatalf("consumer failure ignored: %v",err)}
+}
+
+func TestFrozenPreflightRejectsMissingInvalidOrEmptySources(t *testing.T){
+    root:=t.TempDir()
+    if _,err:=AuditFrozen(root,sensorID);err==nil{t.Fatal("accepted missing original archive")}
+    source:=filepath.Join(root,"observations-1.jsonl.active")
+    if err:=os.WriteFile(source,[]byte(""),0600);err!=nil{t.Fatal(err)}
+    if _,err:=AuditFrozen(root,sensorID);err==nil{t.Fatal("accepted empty original source")}
+    if err:=os.WriteFile(source,[]byte("{bad json}\n"),0600);err!=nil{t.Fatal(err)}
+    if _,err:=AuditFrozen(root,sensorID);err==nil{t.Fatal("accepted malformed original source")}
 }
