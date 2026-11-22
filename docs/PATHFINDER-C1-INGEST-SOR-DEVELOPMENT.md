@@ -392,6 +392,40 @@ A new 2,501-record fixture verifies the historical importer's
 deterministic batch IDs. The complete native C220 run still must
 measure wall time, per-process peak RSS, WAL and I/O independently.
 
+## Stage 8: duplicate natural-source concurrency without global SQL serialization
+
+The SoR SQL controller now uses **256 bounded in-process natural-key gates**
+based on `sensor_uuid + stream + wire_batch_id`. Each gate protects the
+exact `Inspect → Execute → Inspect` sequence for one SQL batch while
+independent verifier B remains outside the SQL ACK critical path. This
+prevents two simultaneous authenticated requests carrying the same original
+source batch under different RAM object names from both observing `new`
+and attempting duplicate SQL writes.
+
+This is **not** a global SQL mutex: distinct source keys use independent
+gates, preserving family concurrency and the 16-credit RAM/SQL handoff
+design. The gates allocate no source-sized or unbounded per-batch map.
+
+Additional acceptance tests include:
+
+- Twelve concurrent requests for the same original source with twelve
+  distinct RAM object references. Exactly one new commit and eleven
+  exact `already_committed` acknowledgments are required.
+- Eight concurrent **mTLS** requests against an **actual isolated
+  PostgreSQL 18** database. Exactly one durable completion row, one
+  new-commit ACK, seven matching duplicate ACKs, and complete B-style
+  typed evidence readback are required.
+- Two unrelated sensor stream keys must actually **enter SQL execution
+  simultaneously**; the test coordinates both writers before allowing
+  either to complete, so a global single-worker gate fails the test.
+
+These in-process locks do **not** replace PostgreSQL transaction-level
+advisory locking and database uniqueness checks between separate SoR
+processes. The native service remains single-instanced per jail/listener
+until the C220 restart and process-overlap acceptance proves otherwise.
+A lost network response is handled through durable SQL state and replay,
+not a volatile RAM acknowledgment or a claimed source-custody copy.
+
 ## Subsequent implementation gates
 
 1. **Frozen-source driver:** stream all nine archive files with exact source
