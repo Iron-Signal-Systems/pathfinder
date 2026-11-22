@@ -3,6 +3,8 @@ package sensorc1
 import (
  "context"
  "errors"
+ "os"
+ "path/filepath"
  "strings"
  "testing"
 
@@ -147,5 +149,31 @@ func TestPGReadbackQuotesUntrustedJSON(t *testing.T){
  if err!=nil{t.Fatal(err)}
  if !strings.Contains(sql,"'example''quote'::text")||!strings.Contains(sql,"EXCEPT ALL"){
   t.Fatal("missing SQL string quote or exact-set comparison")
+ }
+}
+
+func TestPGCredentialFileMustBeRegularAndOwnerOnly(t *testing.T){
+ root:=t.TempDir()
+ secret:=filepath.Join(root,".pgpass")
+ if err:=os.WriteFile(secret,[]byte("localhost:5432:*:test:testing\n"),0600);err!=nil{t.Fatal(err)}
+ c:=testCloneConfig()
+ c.PasswordFile=secret
+ if _,err:=NewPGCloneExecutor(c,func(context.Context,[]byte)(string,error){return "",nil});err!=nil{
+  t.Fatalf("refused owner-only PostgreSQL credential file: %v",err)
+ }
+ if err:=os.Chmod(secret,0640);err!=nil{t.Fatal(err)}
+ if _,err:=NewPGCloneExecutor(c,func(context.Context,[]byte)(string,error){return "",nil});err==nil{
+  t.Fatal("accepted group-readable PostgreSQL credential file")
+ }
+ if err:=os.Chmod(secret,0600);err!=nil{t.Fatal(err)}
+ alias:=filepath.Join(root,"alias-pgpass")
+ if err:=os.Symlink(secret,alias);err!=nil{t.Fatal(err)}
+ c.PasswordFile=alias
+ if _,err:=NewPGCloneExecutor(c,func(context.Context,[]byte)(string,error){return "",nil});err==nil{
+  t.Fatal("accepted symlinked PostgreSQL credentials")
+ }
+ c.PasswordFile=filepath.Join(root,"missing")
+ if _,err:=NewPGCloneExecutor(c,func(context.Context,[]byte)(string,error){return "",nil});err==nil{
+  t.Fatal("accepted missing PostgreSQL credential file")
  }
 }
