@@ -93,6 +93,12 @@ func(v IndependentVerifierB)VerifyFrozen(ctx context.Context,root,sensorID,senso
   return result,errors.New("C1 independent B: exact expected source counts required")
  }
  result.StartedAt=time.Now()
+ audit,err:=AuditFrozen(root,sensorID)
+ if err!=nil{return result,fmt.Errorf("C1 independent B: full original archive preflight: %w",err)}
+ if audit.Files!=expectFiles || audit.Records!=expectRecords {
+  return result,fmt.Errorf("C1 independent B: source count preflight failed files=%d/%d records=%d/%d; no SQL evidence accepted",
+   audit.Files,expectFiles,audit.Records,expectRecords)
+ }
  summary,err:=ReplayFrozen(root,sensorID,sensorUUID,func(p Prepared)error{
   if err:=v.VerifyBatch(ctx,p);err!=nil{return err}
   result.Batches++
@@ -100,6 +106,11 @@ func(v IndependentVerifierB)VerifyFrozen(ctx context.Context,root,sensorID,senso
   return nil
  })
  if err!=nil{return result,err}
+ for path,digest:=range audit.StoredSHA256 {
+  if summary.StoredSHA256[path]!=digest {
+   return result,fmt.Errorf("C1 independent B: source %s differs from preflight audit",path)
+  }
+ }
  if summary.Files!=expectFiles||summary.Records!=expectRecords||
     summary.Batches!=result.Batches||summary.Records!=result.Records{
   return result,fmt.Errorf("C1 independent B: source/SQL verification count mismatch expected=%d/%d got=%d/%d",
