@@ -57,6 +57,30 @@ func ReplayFrozen(root,sensorID,sensorUUID string,emit func(Prepared)error)(Froz
     return summary,nil
 }
 
+// AuditFrozen reads and validates every original archived sensor file without
+// constructing typed SQL or invoking a consumer. Native ingest must verify
+// the entire archive's expected counts BEFORE its first RAM/SQL handoff.
+// The subsequent ReplayFrozen always rechecks the stored original hashes.
+func AuditFrozen(root,sensorID string)(FrozenSummary,error){
+    summary:=FrozenSummary{ByStream:map[sensoringest.Stream]int64{},
+        StoredSHA256:map[string]string{}}
+    if !filepath.IsAbs(root)||!safeID.MatchString(sensorID){
+        return summary,errors.New("C1 frozen preflight: absolute source root and registered sensor ID required")
+    }
+    segments,err:=collectFrozen(root,sensorID)
+    if err!=nil{return summary,err}
+    for _,seg:=range segments {
+        if seg.audit.Total<1{return summary,fmt.Errorf("C1 frozen preflight: empty sensor source %s",seg.path)}
+        summary.Files++
+        summary.Records+=int64(seg.audit.Total)
+        summary.ByStream[seg.stream]+=int64(seg.audit.Total)
+        rel,err:=filepath.Rel(root,seg.path)
+        if err!=nil{return summary,err}
+        summary.StoredSHA256[filepath.ToSlash(rel)]=seg.audit.SHA256
+    }
+    return summary,nil
+}
+
 func collectFrozen(root,sensorID string)([]frozenSegment,error){
     var segs []frozenSegment
     err:=filepath.WalkDir(root,func(path string,d os.DirEntry,err error)error{
