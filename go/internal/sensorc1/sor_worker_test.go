@@ -153,5 +153,5 @@ func TestEndToEndInMemorySoRWithoutReceiverOrDatabase(t *testing.T){
     if err:=scheduler.Push(ctx,p,time.Now());err!=nil{t.Fatal(err)}
     if err:=scheduler.Drain(ctx);err!=nil{t.Fatal(err)}
     if err:=dispatch.Wait(ctx);err!=nil{t.Fatal(err)}
-    if sql.writes!=1||sql.verifications!=1{t.Fatal("SQL commit/readback flow incomplete")}
+    if sql.writes!=1||sql.verifications!=0{t.Fatal("SQL commit incomplete or B verifier incorrectly serialized")}
 }
