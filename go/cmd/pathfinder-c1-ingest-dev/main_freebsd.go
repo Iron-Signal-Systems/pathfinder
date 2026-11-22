@@ -40,10 +40,11 @@ func run()error{
  trust:=flags.String("server-ca","","pinned dedicated SoR CA certificate")
  expectedFiles:=flags.Int("expect-files",0,"required expected original source segments")
  expectedRecords:=flags.Int64("expect-records",0,"required expected original source records")
+ expectedManifest:=flags.String("expect-manifest-sha256","","required full original archive manifest SHA-256 from read-only baseline")
  flags.Parse(os.Args[1:])
  if flags.NArg()!=0{return errors.New("unexpected positional arguments")}
  if *archive==""||*sensor==""||*uuid==""||*ram==""||*addr==""||*serverDNS==""||
-    *cert==""||*key==""||*trust==""||*expectedFiles<1||*expectedRecords<1||*sharedGID<1{
+    *cert==""||*key==""||*trust==""||*expectedFiles<1||*expectedRecords<1||*sharedGID<1||*expectedManifest==""{
   return errors.New("all source, RAM, mTLS and exact source-count settings required")
  }
  // Validate the ENTIRE frozen source before initiating any RAM/SQL
@@ -54,14 +55,19 @@ func run()error{
   return fmt.Errorf("C1 ingest source count preflight FAILED files=%d/%d records=%d/%d; no SQL work submitted",
     sourceAudit.Files,*expectedFiles,sourceAudit.Records,*expectedRecords)
  }
+ fingerprint,err:=sensorc1.FrozenArchiveFingerprint(sourceAudit)
+ if err!=nil{return err}
+ if fingerprint!=*expectedManifest{
+  return fmt.Errorf("C1 ingest source manifest SHA-256 differs from operator-pinned capture; SQL submissions=0")
+ }
  for _,family:=range []sensoringest.Stream{
   sensoringest.Observations,sensoringest.Conntrack,
   sensoringest.Identity,sensoringest.Health,
  }{
   if sourceAudit.ByStream[family]<1{return fmt.Errorf("C1 ingest preflight: source family %s missing",family)}
  }
- fmt.Printf("PATHFINDER_C1_INGEST_SOURCE_PREFLIGHT_PASS files=%d records=%d SQL_handoffs=0\n",
-   sourceAudit.Files,sourceAudit.Records)
+ fmt.Printf("PATHFINDER_C1_INGEST_SOURCE_PREFLIGHT_PASS files=%d records=%d archive_manifest_sha256=%s SQL_handoffs=0\n",
+   sourceAudit.Files,sourceAudit.Records,fingerprint)
  if err:=sensorc1.RequireFreeBSDJailRAM(*ram,false);err!=nil{return err}
  tlsTransport,err:=sensorc1.NewC1HTTPTransport(*addr,*serverDNS,
   sensorc1.C1TLSFiles{Certificate:*cert,PrivateKey:*key,TrustCA:*trust})
@@ -80,6 +86,11 @@ func run()error{
  if summary.Files!=*expectedFiles||summary.Records!=*expectedRecords{
   return fmt.Errorf("frozen archive count mismatch files=%d/%d records=%d/%d",
    summary.Files,*expectedFiles,summary.Records,*expectedRecords)
+ }
+ replayManifest,err:=sensorc1.FrozenArchiveFingerprint(summary)
+ if err!=nil{return err}
+ if replayManifest!=fingerprint {
+  return errors.New("C1 ingest: source archive changed after pinned preflight; NO acceptance")
  }
  if err:=scheduler.Drain(ctx);err!=nil{return err}
  if err:=dispatch.Wait(ctx);err!=nil{return err}
