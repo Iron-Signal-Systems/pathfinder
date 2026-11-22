@@ -77,9 +77,8 @@ func TestIndependentBRequiresBoundedWaitAndOriginals(t *testing.T){
 
 func TestIndependentBRefusesPartialFrozenSourceBeforeAnySQL(t *testing.T){
  root:=t.TempDir()
- path:=filepath.Join(root,"health-ignored.jsonl.active")
  // Use the canonical source path for the original sensor health family.
- path=filepath.Join(root,"health","health-valid.jsonl.active")
+ path:=filepath.Join(root,"health","health-valid.jsonl.active")
  if err:=os.MkdirAll(filepath.Dir(path),0700);err!=nil{t.Fatal(err)}
  if err:=os.WriteFile(path,[]byte(cases[sensoringest.Health].raw+"\n"),0600);err!=nil{t.Fatal(err)}
  sql:=&stagedBSQL{firstState:SQLComplete}
