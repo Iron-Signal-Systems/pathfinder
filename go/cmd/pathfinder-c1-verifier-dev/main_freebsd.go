@@ -32,6 +32,7 @@ func run()error{
  uuid:=flags.String("sensor-uuid","","registered SQL sensor UUID")
  socket:=flags.String("postgres-socket","","local PostgreSQL Unix socket directory")
  sqlRole:=flags.String("postgres-role","","read-only PostgreSQL verifier role")
+ pgPassfile:=flags.String("postgres-passfile","","optional absolute owner-only PostgreSQL PGPASSFILE; no password in environment")
  psql:=flags.String("psql","/usr/local/bin/psql","absolute PostgreSQL psql path")
  expectedFiles:=flags.Int("expect-files",0,"exact expected source file count")
  expectedRows:=flags.Int64("expect-records",0,"exact expected source record count")
@@ -65,6 +66,7 @@ func run()error{
  if err!=nil{return fmt.Errorf("independent original source audit: %w",err)}
  postgres,err:=sensorc1.NewPGCloneExecutor(sensorc1.PGCloneConfig{
   PSQLBinary:*psql,SocketDirectory:*socket,Role:*sqlRole,
+  PasswordFile:*pgPassfile,
   Database:sensorc1.CloneDatabase, // No WriteAuthorization, EVER.
  },nil)
  if err!=nil{return err}
