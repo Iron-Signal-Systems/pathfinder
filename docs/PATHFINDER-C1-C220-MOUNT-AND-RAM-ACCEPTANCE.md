@@ -36,6 +36,7 @@ or reused from a different jail:
 | `PF_C1_SOR_USER` | Distinct non-root user inside `pathfinder-sor` |
 | staged binary paths | Explicit paths to an operator-built `pathfinder-c1-ram-probe-dev` in each jail |
 | source archive + sensor identity | Frozen archive, actual original `sensor_id`, registered UUID; required only for later SQL test |
+| `PF_C1_PINNED_MANIFEST_SHA256` | Exact 64-character lowercase aggregate fingerprint emitted by the read-only baseline below; required for native ingest and independent verifier B |
 | clone + credentials | Separately isolated PostgreSQL 18 `pathfinder_c1_clone`, local socket, SoR SQL role, B SELECT-only role; required only for later SQL test |
 
 The host tmpfs must be **bounded** in size and host memory use. Its
@@ -195,6 +196,15 @@ It reports per-stream counts, exact stored-file SHA-256 digests, a stable
 whole-archive manifest fingerprint, elapsed time, throughput, CPU time,
 Go heap allocation snapshot and cumulative Go allocation volume. These
 are **not** PostgreSQL commit-rate or total peak-RSS measurements.
+The line `FROZEN_SOURCE_MANIFEST_SHA256 value=...` establishes the **exact
+original capture identity**. Record that output as the operator-approved
+`PF_C1_PINNED_MANIFEST_SHA256`. Both native `pathfinder-c1-ingest-dev` and
+`pathfinder-c1-verifier-dev` now require
+`-expect-manifest-sha256 "$PF_C1_PINNED_MANIFEST_SHA256"` along with the
+verified source path, sensor identity, and file/record totals. They must
+abort before starting SQL work if the hash differs, even when the archive
+contains the same number of files and records.
+
 The original 685,218-record archive must be present to record real values;
 none are inferred from CI test fixtures.
 
