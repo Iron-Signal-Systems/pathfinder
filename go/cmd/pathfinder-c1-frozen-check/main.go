@@ -3,8 +3,6 @@
 package main
 
 import (
-    "crypto/sha256"
-    "encoding/hex"
     "flag"
     "fmt"
     "io"
@@ -70,13 +68,13 @@ func run(args []string,output io.Writer)error{
     names:=make([]string,0,len(summary.StoredSHA256))
     for name:=range summary.StoredSHA256{names=append(names,name)}
     sort.Strings(names)
-    manifest:=sha256.New()
+    fingerprint,err:=sensorc1.FrozenArchiveFingerprint(summary)
+    if err!=nil{return err}
     for _,name:=range names {
-        fmt.Fprintf(manifest,"%s\x00%s\n",name,summary.StoredSHA256[name])
         fmt.Fprintf(output,"FROZEN_SOURCE_FILE path=%q stored_sha256=%s\n",name,summary.StoredSHA256[name])
     }
     fmt.Fprintf(output,"FROZEN_SOURCE_MANIFEST_SHA256 value=%s files=%d identity_scope=source_archive\n",
-        hex.EncodeToString(manifest.Sum(nil)),len(names))
+        fingerprint,len(names))
     for _,stream:=range []sensoringest.Stream{
         sensoringest.Observations,sensoringest.Conntrack,
         sensoringest.Identity,sensoringest.Health,
