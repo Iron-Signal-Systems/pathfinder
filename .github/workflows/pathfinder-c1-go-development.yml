@@ -9,6 +9,7 @@ on:
       - 'go/cmd/pathfinder-c1-ingest-dev/**'
       - 'go/cmd/pathfinder-c1-sor-dev/**'
       - 'go/cmd/pathfinder-c1-verifier-dev/**'
+      - 'go/cmd/pathfinder-c1-ram-probe-dev/**'
       - '.github/workflows/pathfinder-c1-go-development.yml'
       - 'tools/pathfinder_c1_c220_preflight.sh'
   pull_request:
@@ -20,6 +21,7 @@ on:
       - 'go/cmd/pathfinder-c1-ingest-dev/**'
       - 'go/cmd/pathfinder-c1-sor-dev/**'
       - 'go/cmd/pathfinder-c1-verifier-dev/**'
+      - 'go/cmd/pathfinder-c1-ram-probe-dev/**'
 permissions:
   contents: read
 jobs:
@@ -56,7 +58,7 @@ jobs:
         run: |
           GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/pathfinder-c1-frozen-check
           GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build ./internal/sensorc1
-          GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build -tags pathfinder_c1_dev ./cmd/pathfinder-c1-ingest-dev ./cmd/pathfinder-c1-sor-dev ./cmd/pathfinder-c1-verifier-dev
+          GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build -tags pathfinder_c1_dev ./cmd/pathfinder-c1-ingest-dev ./cmd/pathfinder-c1-sor-dev ./cmd/pathfinder-c1-verifier-dev ./cmd/pathfinder-c1-ram-probe-dev
 
   postgres18-clone:
     name: PostgreSQL 18 disposable clone integration (NO C220 access)
