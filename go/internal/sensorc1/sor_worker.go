@@ -4,6 +4,8 @@ import (
     "context"
     "errors"
     "fmt"
+    "crypto/sha256"
+    "sync"
 
     "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensorsor"
 )
@@ -34,10 +36,17 @@ type SoRSQLExecutor interface {
     Verify(context.Context,sensorsor.BatchSQL)error
 }
 
+// A fixed-size set of in-process SQL gates coordinates the exact
+// Inspect→Execute→Inspect sequence for duplicate natural source keys.
+// No per-batch map, journal, or unbounded lock collection is retained.
+// Database advisory transaction locks still protect against OTHER processes.
+const sorSQLGateCount = 256
+
 type SoRProcessor struct {
     ReadRoot string
     Originals OriginalSourceReader
     SQL SoRSQLExecutor
+    sqlGates [sorSQLGateCount]sync.Mutex
 }
 
 // ProcessBundle returns an exact SQL COMMIT ACK only after every batch has
@@ -61,34 +70,55 @@ func(s *SoRProcessor)ProcessBundle(ctx context.Context,ref BundleReference)(SQLC
         if err!=nil{return zero,fmt.Errorf("C1 SoR: custody batch %d: %w",i,err)}
         plan,err:=BuildSoRBatch(p,original)
         if err!=nil{return zero,fmt.Errorf("C1 SoR: original proof batch %d: %w",i,err)}
-        state,err:=s.SQL.Inspect(ctx,plan)
-        if err!=nil{return zero,fmt.Errorf("C1 SoR: SQL preflight batch %d: %w",i,err)}
-        switch state {
-        case SQLComplete:
-            // A completed record may be an exact replay, but readback remains
-            // mandatory. Never infer integrity from completion marker alone.
-        case SQLNew:
-            script,err:=plan.SQLScript()
-            if err!=nil{return zero,fmt.Errorf("C1 SoR: SQL plan %d: %w",i,err)}
-            if err:=s.SQL.Execute(ctx,script);err!=nil{
-                return zero,fmt.Errorf("C1 SoR: SQL commit uncertain for batch %d: %w",i,err)
-            }
-            committed++
-        case SQLPartial,SQLConflict:
-            return zero,fmt.Errorf("C1 SoR: %s PostgreSQL state at batch %d; manual reconciliation required",state,i)
-        default:
-            return zero,fmt.Errorf("C1 SoR: unexpected PostgreSQL state %q",state)
+        newlyCommitted,err:=s.commitOne(ctx,plan)
+        if err!=nil{
+            return zero,fmt.Errorf("C1 SoR: batch %d: %w",i,err)
         }
-        // SQL ACK reflects the durable completion marker, NOT independent
-        // verifier B acceptance. A lost/uncertain SQL response fails closed.
-        committedState,err:=s.SQL.Inspect(ctx,plan)
-        if err!=nil || committedState!=SQLComplete {
-            return zero,fmt.Errorf("C1 SoR: batch %d durable completion not confirmed (state=%s): %w",i,committedState,err)
-        }
+        if newlyCommitted{committed++}
         ids=append(ids,p.BatchUUID)
     }
     outcome:="already_committed"
     if committed>0{outcome="committed"}
     return SQLCommitAck{Name:ref.Name,SHA256:ref.SHA256,Stream:ref.Stream,
         Records:ref.Records,BatchUUIDs:ids,Outcome:outcome},nil
+}
+
+ 
+// commitOne is the ONLY SQL work path from the SoR processor. Lock by the
+// verified natural key, not the RAM object name, so two differently named
+// bundles containing the same original batch cannot both observe "new".
+// The lock is released on every error and does not hold verifier B.
+func(s *SoRProcessor)commitOne(ctx context.Context,plan sensorsor.BatchSQL)(bool,error){
+    key:=sha256.Sum256([]byte(plan.SensorUUID+"\x00"+plan.Stream+"\x00"+plan.WireBatchID))
+    gate:=&s.sqlGates[key[0]]
+    gate.Lock()
+    defer gate.Unlock()
+    if err:=ctx.Err();err!=nil{return false,err}
+    state,err:=s.SQL.Inspect(ctx,plan)
+    if err!=nil{return false,fmt.Errorf("SQL preflight: %w",err)}
+    wrote:=false
+    switch state{
+    case SQLComplete:
+        // Durable metadata matches the original replay identity.
+        // Independent verifier B checks all typed rows in parallel.
+    case SQLNew:
+        script,err:=plan.SQLScript()
+        if err!=nil{return false,fmt.Errorf("SQL plan: %w",err)}
+        if err:=s.SQL.Execute(ctx,script);err!=nil{
+            return false,fmt.Errorf("SQL commit uncertain: %w",err)
+        }
+        wrote=true
+    case SQLPartial,SQLConflict:
+        return false,fmt.Errorf("%s PostgreSQL state; manual reconciliation required",state)
+    default:
+        return false,fmt.Errorf("unexpected PostgreSQL state %q",state)
+    }
+    // An SQL ACK means every batch has a confirmed durable completion,
+    // not that the separately scheduled B verifier has completed.
+    committedState,err:=s.SQL.Inspect(ctx,plan)
+    if err!=nil{return false,fmt.Errorf("postcommit SQL state read: %w",err)}
+    if committedState!=SQLComplete{
+        return false,fmt.Errorf("postcommit SQL state %q is not complete",committedState)
+    }
+    return wrote,nil
 }
