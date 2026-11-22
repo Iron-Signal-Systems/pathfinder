@@ -64,7 +64,9 @@ jobs:
             postgres:18 -c unix_socket_directories=/var/run/postgresql
           for i in $(seq 1 60); do
             if docker exec pathfinder-c1-pg18 \
-              pg_isready -h /var/run/postgresql -U postgres -d pathfinder_c1_clone >/dev/null; then
+              psql -X -q -A -t -v ON_ERROR_STOP=1 \
+              -h /var/run/postgresql -U postgres -d pathfinder_c1_clone \
+              -c 'SELECT 1' 2>/dev/null | grep -qx '1'; then
               exit 0
             fi
             sleep 1
