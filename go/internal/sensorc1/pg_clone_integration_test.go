@@ -136,3 +136,23 @@ func TestActualPostgres18ReadOnlyVerifierB(t *testing.T){
   t.Fatal("read-only verifier permitted SQL Execute")
  }
 }
+
+func TestActualPostgres18VerifierRejectsColumnUpdateGrant(t *testing.T){
+ wrapper:=requireIntegration(t)
+ config:=testCloneConfig()
+ config.Role="pathfinder_c1_verifier"
+ config.PSQLBinary=wrapper
+ verifier,err:=NewPGCloneExecutor(config,nil)
+ if err!=nil{t.Fatal(err)}
+ ctx:=context.Background()
+ if err:=verifier.VerifyReadOnlyRole(ctx);err!=nil{
+  t.Fatalf("baseline SELECT-only verification failed: %v",err)
+ }
+ pgAdminIntegration(t,`GRANT UPDATE (tls_sni) ON pathfinder.sensor_observation TO pathfinder_c1_verifier;`)
+ defer func(){
+  pgAdminIntegration(t,`REVOKE UPDATE (tls_sni) ON pathfinder.sensor_observation FROM pathfinder_c1_verifier;`)
+ }()
+ if err:=verifier.VerifyReadOnlyRole(ctx);err==nil{
+  t.Fatal("B verifier falsely accepted a column UPDATE privilege")
+ }
+}
