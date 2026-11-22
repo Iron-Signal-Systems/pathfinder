@@ -4,6 +4,7 @@ import (
     "os"
     "path/filepath"
     "testing"
+    "syscall"
 
     "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensoringest"
 )
@@ -52,5 +53,35 @@ func TestFamilyBundleRejectsConflicts(t *testing.T){
         t.Run(name,func(t *testing.T){
             if err:=bundle.Validate();err==nil{t.Fatal("invalid bundle accepted")}
         })
+    }
+}
+
+func TestFreeBSDStyleSharedRAMGroupPublication(t *testing.T){
+    root:=t.TempDir()
+    if err:=os.Chmod(root,0750);err!=nil{t.Fatal(err)}
+    p,err:=Prepare(inputFor(sensoringest.Health))
+    if err!=nil{t.Fatal(err)}
+    b:=Bundle{Format:BundleFormat,Stream:p.Stream,Batches:[]Prepared{p},
+        SourceBytes:p.PayloadBytes,Records:p.Evidence.Count}
+    if _,err:=PublishBundleWithGroup(root,b,0);err==nil{
+        t.Fatal("accepted root/wheel as shared RAM GID")
+    }
+    if _,err:=NewDispatcherForJails(root,nil,0);err==nil{
+        t.Fatal("accepted missing dedicated shared RAM group")
+    }
+    gid:=os.Getgid()
+    if gid<1{t.Skip("CI is root group: no safe non-root shared GID to exercise")}
+    ref,err:=PublishBundleWithGroup(root,b,gid)
+    if err!=nil{t.Fatal(err)}
+    st,err:=os.Stat(filepath.Join(root,ref.Name))
+    if err!=nil{t.Fatal(err)}
+    if st.Mode().Perm()!=0640{t.Fatalf("group-only RAM object permissions: %04o",st.Mode().Perm())}
+    native,ok:=st.Sys().(*syscall.Stat_t)
+    if !ok{t.Fatal("no native Unix file group metadata")}
+    if int(native.Gid)!=gid{t.Fatalf("published file GID=%d want=%d",native.Gid,gid)}
+    got,err:=ReadBundle(root,ref)
+    if err!=nil{t.Fatal(err)}
+    if len(got.Batches)!=1||got.Batches[0].BatchUUID!=p.BatchUUID{
+        t.Fatal("shared-group publication lost source identity")
     }
 }
