@@ -13,6 +13,16 @@ cat > "$tmp/mock/gh" <<'MOCK'
 set -eu
 case "$1:$2" in
   run:list)
+    # Only PUSH runs contain the FreeBSD artifact; PR workflows do not.
+    found=0
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = '--event' ] && [ "$#" -ge 2 ] && [ "$2" = 'push' ]; then
+        found=1
+        break
+      fi
+      shift
+    done
+    [ "$found" -eq 1 ] || exit 1
     printf '%s\n' 77777777 ;;
   run:view)
     for arg in "$@"; do
