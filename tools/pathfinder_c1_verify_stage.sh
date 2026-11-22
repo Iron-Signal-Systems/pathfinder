@@ -13,7 +13,6 @@ esac
 for path in bin/pathfinder-c1-ingest-dev bin/pathfinder-c1-sor-dev \
     bin/pathfinder-c1-verifier-dev bin/pathfinder-c1-ram-probe-dev \
     bin/pathfinder-c1-frozen-check \
-    bin/pathfinder-c1-frozen-check \
     tools/pathfinder_c1_c220_preflight.sh \
     tools/pathfinder_c1_c220_discover.sh \
     tools/pathfinder_c1_verify_stage.sh \
@@ -66,6 +65,7 @@ done < "$stage/SHA256SUMS"
 expected_names=$(printf '%s\n' \
     bin/pathfinder-c1-ingest-dev bin/pathfinder-c1-sor-dev \
     bin/pathfinder-c1-verifier-dev bin/pathfinder-c1-ram-probe-dev \
+    bin/pathfinder-c1-frozen-check \
     tools/pathfinder_c1_c220_preflight.sh \
     tools/pathfinder_c1_c220_discover.sh \
     tools/pathfinder_c1_verify_stage.sh \
