@@ -17,7 +17,7 @@ import (
 
 // This test traverses the whole C1 development pipeline with a REAL PG18
 // backend and an independently audited frozen original source. It uses
-// in-memory control transport and a normal temporary directory as fake RAM,
+// mTLS loopback control transport and a normal temporary directory as fake RAM,
 // so it is NOT native FreeBSD jail, tmpfs or mTLS acceptance.
 func TestFullC1FrozenPipelineIntoActualPG18(t *testing.T){
  wrapper:=requireIntegration(t)
@@ -55,7 +55,13 @@ func TestFullC1FrozenPipelineIntoActualPG18(t *testing.T){
  ram:=t.TempDir()
  if err:=os.Chmod(ram,0700);err!=nil{t.Fatal(err)}
  processor:=&SoRProcessor{ReadRoot:ram,Originals:orig,SQL:pg}
- dispatcher,err:=NewDispatcher(ram,inMemorySoRTransport{processor:processor})
+ // Both roles use real TLS 1.3 mutual authentication even though this CI
+ // fixture runs on one host, not across FreeBSD jails.
+ pki:=makeControlTestPKI(t)
+ server:=makeControlTestServer(t,processor,pki)
+ transport,err:=NewC1HTTPTransport(server.Listener.Addr().String(),"pathfinder-sor.internal",pki.client)
+ if err!=nil{t.Fatal(err)}
+ dispatcher,err:=NewDispatcher(ram,transport)
  if err!=nil{t.Fatal(err)}
  scheduler,err:=NewScheduler(DefaultSchedulerOptions(),dispatcher)
  if err!=nil{t.Fatal(err)}
