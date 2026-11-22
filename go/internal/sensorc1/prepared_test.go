@@ -24,7 +24,8 @@ var cases = map[sensoringest.Stream]struct{schema,raw,table,child string}{
 func inputFor(s sensoringest.Stream) Input {
     c:=cases[s]
     return Input{SensorID:sensorID,SensorUUID:sensorUUID,Stream:s,
-        SchemaVersion:c.schema,WireBatchID:"batch-a",SegmentOrdinalStart:17,
+        SchemaVersion:c.schema,WireBatchID:"batch-a",
+        BatchUUID:sensorsor.ID("frozen-import-batch-v1",sensorUUID,string(s),"batch-a"),SegmentOrdinalStart:17,
         Payload:[]byte(c.raw+"\n")}
 }
 
