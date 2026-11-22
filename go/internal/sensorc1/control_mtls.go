@@ -49,6 +49,7 @@ type C1ControlServer struct{
  Processor *SoRProcessor
  ExpectedClientDNS string
  permits chan struct{}
+ replay controlReplayFence
 }
 func NewC1ControlServer(proc *SoRProcessor,expectedClientDNS string)(*C1ControlServer,error){
  if proc==nil||proc.SQL==nil||proc.Originals==nil||proc.ReadRoot==""||expectedClientDNS==""{
@@ -93,6 +94,14 @@ func(s *C1ControlServer)ServeHTTP(w http.ResponseWriter,r *http.Request){
  select{
  case s.permits<-struct{}{}:defer func(){<-s.permits}()
  default:http.Error(w,"SoR capacity exhausted",http.StatusServiceUnavailable);return
+ }
+ if err:=s.replay.remember(r.TLS.PeerCertificates[0].Raw,req.Nonce,time.Now());err!=nil{
+  if errors.Is(err,ErrControlReplay){
+   http.Error(w,"replayed authenticated control nonce",http.StatusConflict)
+  }else{
+   http.Error(w,"control replay protection unavailable",http.StatusServiceUnavailable)
+  }
+  return
  }
  ack,err:=s.Processor.ProcessBundle(r.Context(),req.Reference)
  if err!=nil{
