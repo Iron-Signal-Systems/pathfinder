@@ -3,11 +3,14 @@
 package main
 
 import (
+    "crypto/sha256"
+    "encoding/hex"
     "flag"
     "fmt"
     "io"
     "os"
     "runtime"
+    "sort"
     "syscall"
     "time"
 
@@ -64,6 +67,16 @@ func run(args []string,output io.Writer)error{
         summary.Files,summary.Batches,summary.Records,sec,rate)
     fmt.Fprintf(output,"FROZEN_PREP_RESOURCE_METRICS cpu_user_seconds=%.3f cpu_system_seconds=%.3f heap_alloc_mib=%.2f total_go_alloc_mib=%.2f gc_cycles=%d mem_metric_type=process_snapshot receiver_changes=0 sql_writes=0\n",
         cpuUser,cpuSystem,float64(mem.HeapAlloc)/(1<<20),float64(mem.TotalAlloc)/(1<<20),mem.NumGC)
+    names:=make([]string,0,len(summary.StoredSHA256))
+    for name:=range summary.StoredSHA256{names=append(names,name)}
+    sort.Strings(names)
+    manifest:=sha256.New()
+    for _,name:=range names {
+        fmt.Fprintf(manifest,"%s\x00%s\n",name,summary.StoredSHA256[name])
+        fmt.Fprintf(output,"FROZEN_SOURCE_FILE path=%q stored_sha256=%s\n",name,summary.StoredSHA256[name])
+    }
+    fmt.Fprintf(output,"FROZEN_SOURCE_MANIFEST_SHA256 value=%s files=%d identity_scope=source_archive\n",
+        hex.EncodeToString(manifest.Sum(nil)),len(names))
     for _,stream:=range []sensoringest.Stream{
         sensoringest.Observations,sensoringest.Conntrack,
         sensoringest.Identity,sensoringest.Health,
