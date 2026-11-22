@@ -37,21 +37,25 @@ func run()error{
  expectedRows:=flags.Int64("expect-records",0,"exact expected source record count")
  poll:=flags.Duration("poll",5*time.Second,"verification progress poll interval")
  maxWait:=flags.Duration("max-wait-per-batch",90*time.Minute,"bounded SQL completion wait")
+ maxCacheMiB:=flags.Int64("max-original-cache-mib",4096,"maximum frozen original payload bytes retained in MiB, 1-4096")
  flags.Parse(os.Args[1:])
  if flags.NArg()!=0{return errors.New("no positional arguments permitted")}
  if *archive==""||*sensor==""||*uuid==""||*socket==""||*sqlRole==""||
     *expectedFiles<1||*expectedRows<1||*poll<=0||*maxWait<=0{
   return errors.New("frozen source, local read-only PostgreSQL role and exact expected counts are mandatory")
  }
+ if *maxCacheMiB<1||*maxCacheMiB>4096{return errors.New("source-cache-MiB must be 1..4096")}
  ctx,stop:=signal.NotifyContext(context.Background(),syscall.SIGTERM,syscall.SIGINT)
  defer stop()
- original,err:=sensorc1.NewFrozenOriginalReader(*archive,*sensor,*uuid)
+ original,err:=sensorc1.NewFrozenOriginalReaderWithLimit(*archive,*sensor,*uuid,*maxCacheMiB<<20)
  if err!=nil{return fmt.Errorf("independent original source audit: %w",err)}
  postgres,err:=sensorc1.NewPGCloneExecutor(sensorc1.PGCloneConfig{
   PSQLBinary:*psql,SocketDirectory:*socket,Role:*sqlRole,
   Database:sensorc1.CloneDatabase, // No WriteAuthorization, EVER.
  },nil)
  if err!=nil{return err}
+ batches,sourceBytes,limitBytes:=original.CachedSourceStats()
+ fmt.Printf("PATHFINDER_C1_B_SOURCE_CACHE batches=%d original_source_bytes=%d budget_bytes=%d authoritative=false\n",batches,sourceBytes,limitBytes)
  if err:=postgres.VerifyReadOnlyRole(ctx);err!=nil{return err}
  verifier:=sensorc1.IndependentVerifierB{
   Originals:original,SQL:postgres,
