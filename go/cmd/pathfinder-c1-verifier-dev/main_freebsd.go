@@ -40,6 +40,7 @@ func run()error{
  poll:=flags.Duration("poll",5*time.Second,"verification progress poll interval")
  maxWait:=flags.Duration("max-wait-per-batch",90*time.Minute,"bounded SQL completion wait")
  maxCacheMiB:=flags.Int64("max-original-cache-mib",4096,"maximum frozen original payload bytes retained in MiB, 1-4096")
+ workers:=flags.Int("workers",4,"bounded concurrent read-only SQL verification workers, 1-16")
  flags.Parse(os.Args[1:])
  if flags.NArg()!=0{return errors.New("no positional arguments permitted")}
  if *archive==""||*sensor==""||*uuid==""||*socket==""||*sqlRole==""||
@@ -47,6 +48,7 @@ func run()error{
   return errors.New("frozen source, local read-only PostgreSQL role and exact expected counts are mandatory")
  }
  if *maxCacheMiB<1||*maxCacheMiB>4096{return errors.New("source-cache-MiB must be 1..4096")}
+ if *workers<1||*workers>16{return errors.New("C1 verifier workers must be 1..16")}
  audit,err:=sensorc1.AuditFrozen(*archive,*sensor)
  if err!=nil{return fmt.Errorf("C1 B pinned original archive preflight: %w",err)}
  if audit.Files!=*expectedFiles||audit.Records!=*expectedRows{
@@ -75,7 +77,11 @@ func run()error{
  if err:=postgres.VerifyReadOnlyRole(ctx);err!=nil{return err}
  verifier:=sensorc1.IndependentVerifierB{
   Originals:original,SQL:postgres,
-  PollInterval:*poll,MaxWait:*maxWait,
+  PollInterval:*poll,MaxWait:*maxWait,Workers:*workers,
+  OnProgress:func(p sensorc1.BVerificationProgress){
+   fmt.Printf("PATHFINDER_C1_B_PROGRESS batches=%d verified_records=%d target_records=%d elapsed_seconds=%.3f workers=%d\n",
+    p.Batches,p.Records,p.ExpectedRecords,p.Elapsed.Seconds(),*workers)
+  },
  }
  result,err:=verifier.VerifyFrozen(ctx,*archive,*sensor,*uuid,*expectedFiles,*expectedRows)
  if err!=nil{return err}

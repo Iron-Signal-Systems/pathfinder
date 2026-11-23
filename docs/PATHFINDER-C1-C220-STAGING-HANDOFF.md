@@ -57,3 +57,39 @@ Only after a separate isolation review may a **disposable** PostgreSQL 18 databa
 After work/receipts mounts, source checks and clone roles are verified, explicitly start SoR filesystem consumer against the clone, independent verifier B alongside it, then frozen replay ingest using the matching tmpfs paths. Observe that no native C1 service listens on TCP. Require exact original counts (685,218), child/typed readback, matching commit receipts, duplicate replay safety, lost receipt and tmpfs-loss recovery, independent B, and resource telemetry. No canonical promotion or live sensor acknowledgment.
 
 **STOP** on source mismatch, unsafe mount, role crossing database boundary, incomplete SQL, forged/replayed receipt, failed recovery, or unknown path. Nothing in this branch automatically deploys to C220 or enables rc startup.
+
+
+## Native C220 685,218-record recovery acceptance (2026-11-23)
+
+Accepted C220 run: /var/tmp/pathfinder-c1-replay.PQSiEyU2, source
+manifest f3e796d8230215a28072d28d5a4afd329ea2dbc0b997e3cea11efd899c758c8d,
+registered Gateway sensor UUID 01a20308-5a77-7af7-8d07-79c7b1b34f6b.
+Initial isolated clone state was 4 committed batches / 10,000 records after
+an interrupted SoR work-file race. The corrected source commit
+87d37d0ee3fba6b5df11f25fb69a00969afc7de7 retained that state and
+successfully recovered all 281 original batches / 685,218 records via
+duplex tmpfs-only cross-jail handoff and PostgreSQL 18 clone transactions.
+Independent verifier B independently checked all four stream families
+and every original batch. FINAL=281|685218, with
+PATHFINDER_C1_NATIVE_RECOVERY_REPLAY_PASS. No canonical acceptance.
+
+Observed ingest SQL-ACK duration: 7m53.248681014s.
+Observed independent B verification duration: 22m8.338071321s.
+Approximate verification-over-ingestion lag: 14m15s, above the operator's
+30–60-second completion lag target. This is the *baseline*, not acceptable
+operational verification latency.
+
+The subsequent isolated DEV optimization introduces bounded 1–16 worker
+batch verification (native default: 4) with separate read-only PostgreSQL
+sessions and periodic successful-batch progress. It retains every batch's
+independent source reconstruction, original file SHA-256 reconciliation,
+durable completion inspection, full relational/typed/child readback,
+and fail-closed acceptance accounting. Test the optimized verifier
+against the **already complete, isolated C220 clone**, without rerunning
+ingest or clearing the accepted evidence. The 30–60-second lag objective
+is not achieved or claimed until a later concurrently measured native run.
+
+The populated pathfinder database, FI, receiver, original frozen capture,
+and currently accepted clone remain untouched by this source-only change.
+Native mount persistence, deliberate crash/reboot testing and service
+readiness are still separate acceptance gates.

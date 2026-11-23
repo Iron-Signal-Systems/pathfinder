@@ -4,6 +4,8 @@ import (
  "context"
  "errors"
  "fmt"
+ "sync"
+ "sync/atomic"
  "time"
 
  "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensorsor"
@@ -24,6 +26,18 @@ type IndependentVerifierB struct{
  SQL BSQLReadOnly
  PollInterval time.Duration
  MaxWait time.Duration
+ // Workers is the maximum number of independently verified batches in
+ // flight. Zero preserves the historical single-worker library behavior.
+ // The FreeBSD verifier entrypoint explicitly defaults to four.
+ Workers int
+ OnProgress func(BVerificationProgress)
+}
+
+type BVerificationProgress struct {
+ Batches int64
+ Records int64
+ ExpectedRecords int64
+ Elapsed time.Duration
 }
 
 type BVerificationResult struct{
@@ -89,34 +103,93 @@ func(v IndependentVerifierB)VerifyBatch(ctx context.Context,p Prepared)error{
 func(v IndependentVerifierB)VerifyFrozen(ctx context.Context,root,sensorID,sensorUUID string,
  expectFiles int,expectRecords int64)(BVerificationResult,error){
  var result BVerificationResult
- if expectFiles<1||expectRecords<1{
-  return result,errors.New("C1 independent B: exact expected source counts required")
+ if ctx==nil || expectFiles<1 || expectRecords<1 {
+  return result,errors.New("C1 independent B: context and exact expected source counts required")
+ }
+ workers:=v.Workers
+ if workers==0{workers=1}
+ if workers<1||workers>16 {
+  return result,errors.New("C1 independent B: verification workers must be 1..16")
  }
  result.StartedAt=time.Now()
+ // No SQL evidence may be accepted until ALL nine original source files
+ // have independently passed their complete read-only audit.
  audit,err:=AuditFrozen(root,sensorID)
  if err!=nil{return result,fmt.Errorf("C1 independent B: full original archive preflight: %w",err)}
  if audit.Files!=expectFiles || audit.Records!=expectRecords {
   return result,fmt.Errorf("C1 independent B: source count preflight failed files=%d/%d records=%d/%d; no SQL evidence accepted",
    audit.Files,expectFiles,audit.Records,expectRecords)
  }
- summary,err:=ReplayFrozen(root,sensorID,sensorUUID,func(p Prepared)error{
-  if err:=v.VerifyBatch(ctx,p);err!=nil{return err}
-  result.Batches++
-  result.Records+=int64(p.Evidence.Count)
-  return nil
+ // Only complete prepared batches enter this bounded queue. ReplayFrozen
+ // runs on this producer goroutine, preserving its original stored-file
+ // hash and chunk-identity proofs. Workers cannot acknowledge or write SQL.
+ verifyCtx,cancel:=context.WithCancel(ctx)
+ defer cancel()
+ jobs:=make(chan Prepared,workers)
+ firstFailure:=make(chan error,1)
+ var wg sync.WaitGroup
+ var verifiedBatches,verifiedRecords atomic.Int64
+ for i:=0;i<workers;i++{
+  wg.Add(1)
+  go func(){
+   defer wg.Done()
+   for{
+    select{
+    case <-verifyCtx.Done():return
+    case prepared,ok:=<-jobs:
+     if !ok{return}
+     if err:=v.VerifyBatch(verifyCtx,prepared);err!=nil{
+      select{
+      case firstFailure<-fmt.Errorf("C1 independent B: batch %s: %w",prepared.BatchUUID,err):
+      default:
+      }
+      cancel()
+      return
+     }
+     count:=verifiedBatches.Add(1)
+     rows:=verifiedRecords.Add(int64(prepared.Evidence.Count))
+     if v.OnProgress!=nil && (count%10==0 || rows==expectRecords){
+      v.OnProgress(BVerificationProgress{
+       Batches:count,Records:rows,ExpectedRecords:expectRecords,
+       Elapsed:time.Since(result.StartedAt),
+      })
+     }
+    }
+   }
+  }()
+ }
+ summary,replayErr:=ReplayFrozen(root,sensorID,sensorUUID,func(p Prepared)error{
+  // Source is already validated by ReplayFrozen, but no worker may claim
+  // final acceptance until the producer finishes the exact source hash pass.
+  select{
+  case <-verifyCtx.Done():return verifyCtx.Err()
+  case jobs<-p:return nil
+  }
  })
- if err!=nil{return result,err}
+ close(jobs)
+ wg.Wait()
+ select{
+ case workerErr:=<-firstFailure:
+  return result,workerErr
+ default:
+ }
+ if replayErr!=nil{return result,replayErr}
+ if err:=ctx.Err();err!=nil{return result,err}
  for path,digest:=range audit.StoredSHA256 {
   if summary.StoredSHA256[path]!=digest {
    return result,fmt.Errorf("C1 independent B: source %s differs from preflight audit",path)
   }
  }
  if summary.Files!=expectFiles||summary.Records!=expectRecords||
-    summary.Batches!=result.Batches||summary.Records!=result.Records{
-  return result,fmt.Errorf("C1 independent B: source/SQL verification count mismatch expected=%d/%d got=%d/%d",
-   expectFiles,expectRecords,summary.Files,summary.Records)
+    summary.Batches!=int(verifiedBatches.Load())||
+    summary.Records!=verifiedRecords.Load(){
+  return result,fmt.Errorf("C1 independent B: source/SQL verification count mismatch expected=%d/%d got=%d/%d verified=%d/%d",
+   expectFiles,expectRecords,summary.Files,summary.Records,
+   verifiedBatches.Load(),verifiedRecords.Load())
  }
  result.Files=summary.Files
+ result.Batches=int(verifiedBatches.Load())
+ result.Records=verifiedRecords.Load()
  result.CompletedAt=time.Now()
  return result,nil
 }
