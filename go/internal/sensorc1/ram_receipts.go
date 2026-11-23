@@ -226,13 +226,29 @@ func ServeRAMWork(ctx context.Context,workRoot,receiptRoot string,gid int,proc *
     ticker:=time.NewTicker(poll)
     defer ticker.Stop()
     active:=make(map[string]bool)
+    // A finished work name must not be re-dispatched while ingest is
+    // validating its receipt and reclaiming the work object. Otherwise a
+    // second SoR scan can race producer-side unlink after a valid SQL ACK.
+    // Retired names are forgotten as soon as they disappear from tmpfs;
+    // this is not a durable ledger or a substitute for PostgreSQL recovery.
+    retired:=make(map[string]struct{})
     finished:=make(chan c1WorkResult,MaxRAMReceiptWorkers)
     scan:=func()error{
         entries,err:=os.ReadDir(workRoot)
         if err!=nil{return err}
+        visible:=make(map[string]struct{},len(entries))
+        for _,item:=range entries{
+            if handoffName.MatchString(item.Name()){
+                visible[item.Name()]=struct{}{}
+            }
+        }
+        for name:=range retired{
+            if _,exists:=visible[name];!exists{delete(retired,name)}
+        }
         for _,item:=range entries{
             name:=item.Name()
             if !handoffName.MatchString(name)||active[name]{continue}
+            if _,done:=retired[name];done{continue}
             if len(active)>=MaxRAMReceiptWorkers{break}
             active[name]=true
             wg.Add(1)
@@ -251,6 +267,7 @@ func ServeRAMWork(ctx context.Context,workRoot,receiptRoot string,gid int,proc *
         case result:=<-finished:
             delete(active,result.name)
             if result.err!=nil{return fmt.Errorf("C1 RAM SoR work %s: %w",result.name,result.err)}
+            retired[result.name]=struct{}{}
         case <-ticker.C:
             if err:=scan();err!=nil{return err}
         }
@@ -260,12 +277,23 @@ func ServeRAMWork(ctx context.Context,workRoot,receiptRoot string,gid int,proc *
 func serveOneRAMBundle(ctx context.Context,workRoot,receiptRoot,name string,gid int,proc *SoRProcessor)error{
     if err:=ctx.Err();err!=nil{return err}
     ref,err:=DiscoverBundleFromRAM(workRoot,name,gid)
+    if errors.Is(err,os.ErrNotExist){
+        // ReadDir can observe a name already reclaimed by ingest. No
+        // SQL operation or acknowledgment is permitted for missing work.
+        return nil
+    }
     if err!=nil{return err}
     if _,err:=os.Lstat(filepath.Join(receiptRoot,receiptFileName(ref)));err==nil{
         _,err=ReadRAMCommitReceipt(receiptRoot,ref,gid)
         return err // already committed to SQL; never overwrite an existing ACK
     }else if !errors.Is(err,os.ErrNotExist){return err}
     ack,err:=proc.ProcessBundle(ctx,ref)
+    if errors.Is(err,ErrVolatileRAMWorkGone){
+        // The producer may reclaim an already-ACKed object between
+        // discovery and ProcessBundle's second open. Never infer a new
+        // commit or emit a replacement receipt from an absent object.
+        return nil
+    }
     if err!=nil{return err}
     return WriteRAMCommitReceipt(receiptRoot,ref,ack,gid)
 }

@@ -4,6 +4,7 @@ import (
     "context"
     "errors"
     "fmt"
+    "os"
     "crypto/sha256"
     "sync"
 
@@ -49,6 +50,10 @@ type SoRProcessor struct {
     sqlGates [sorSQLGateCount]sync.Mutex
 }
 
+// ErrVolatileRAMWorkGone is limited to a missing work object on the RAM
+// handoff path. Missing ORIGINAL custody is always a distinct fatal error.
+var ErrVolatileRAMWorkGone = errors.New("C1 SoR: volatile work object disappeared")
+
 // ProcessBundle returns an exact SQL COMMIT ACK only after every batch has
 // independently checked ORIGINAL source provenance and written/confirmed a
 // durable PostgreSQL transaction. Independent verifier B performs full
@@ -61,6 +66,9 @@ func(s *SoRProcessor)ProcessBundle(ctx context.Context,ref BundleReference)(SQLC
     }
     if err:=ctx.Err();err!=nil{return zero,err}
     bundle,err:=ReadBundle(s.ReadRoot,ref)
+    if errors.Is(err,os.ErrNotExist){
+        return zero,fmt.Errorf("%w: %w",ErrVolatileRAMWorkGone,err)
+    }
     if err!=nil{return zero,fmt.Errorf("C1 SoR: RAM input invalid: %w",err)}
     committed:=0
     ids:=make([]string,0,len(bundle.Batches))
