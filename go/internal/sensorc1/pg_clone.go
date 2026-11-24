@@ -9,6 +9,7 @@ import (
  "os/exec"
  "path/filepath"
  "strings"
+ "sync"
 
  "github.com/Iron-Signal-Systems/pathfinder/go/internal/sensorsor"
 )
@@ -35,6 +36,10 @@ type PGCloneConfig struct{
 type PGCloneExecutor struct{
  config PGCloneConfig
  run PGRun
+ // B-only pinned catalog types. The independent B process revalidates
+ // these types at final acceptance; only successfully inspected catalog
+ // results enter the cache. No cache of SQL completion or evidence is held.
+ bColumnCache sync.Map
 }
 
 // NewPGCloneExecutor does not connect, modify a database or start a service.

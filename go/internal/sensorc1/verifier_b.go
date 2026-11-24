@@ -70,7 +70,15 @@ func(v IndependentVerifierB)VerifyBatch(ctx context.Context,p Prepared)error{
   case SQLComplete:
    // A real PostgreSQL executor proves ALL typed parent columns, while
    // the minimal read-only test double uses the smaller Verify contract.
-   if full,ok:=v.SQL.(interface{VerifyComplete(context.Context,SQLBatch)error});ok{
+   // A real PostgreSQL executor has already proved the exact durable
+   // source identity in Inspect. Keep that proof and check all typed parent
+   // and relational child evidence in one read-only SQL snapshot. The
+   // generic fallback and original full verifier remain unchanged.
+   if full,ok:=v.SQL.(interface{VerifyBCompleteAfterInspect(context.Context,SQLBatch)error});ok{
+    if err:=full.VerifyBCompleteAfterInspect(timeoutCtx,plan);err!=nil{
+     return fmt.Errorf("C1 independent B: snapshot SQL proof failed: %w",err)
+    }
+   }else if full,ok:=v.SQL.(interface{VerifyComplete(context.Context,SQLBatch)error});ok{
     if err:=full.VerifyComplete(timeoutCtx,plan);err!=nil{
      return fmt.Errorf("C1 independent B: full typed SQL proof failed: %w",err)
     }
@@ -186,6 +194,14 @@ func(v IndependentVerifierB)VerifyFrozen(ctx context.Context,root,sensorID,senso
   return result,fmt.Errorf("C1 independent B: source/SQL verification count mismatch expected=%d/%d got=%d/%d verified=%d/%d",
    expectFiles,expectRecords,summary.Files,summary.Records,
    verifiedBatches.Load(),verifiedRecords.Load())
+ }
+ // Any schema type drift during the run invalidates the entire B result.
+ // This is also checked if the SQL executor's catalog was pinned only once
+ // per family, rather than querying information_schema for each batch.
+ if pinned,ok:=v.SQL.(interface{VerifyBPinnedCatalog(context.Context)error});ok{
+  if err:=pinned.VerifyBPinnedCatalog(ctx);err!=nil{
+   return result,fmt.Errorf("C1 independent B: final SQL catalog changed: %w",err)
+  }
  }
  result.Files=summary.Files
  result.Batches=int(verifiedBatches.Load())

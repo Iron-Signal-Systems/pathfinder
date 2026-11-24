@@ -93,3 +93,27 @@ The populated pathfinder database, FI, receiver, original frozen capture,
 and currently accepted clone remain untouched by this source-only change.
 Native mount persistence, deliberate crash/reboot testing and service
 readiness are still separate acceptance gates.
+
+
+## Verifier B second optimization (after physical 4-worker baseline)
+
+The four-worker, fully independent C220 verifier B completed all 281 original
+batches / 685,218 records from the already-completed clone in
+11m19.449498056s (log /var/tmp/pathfinder-c1-b4.hCOWFVwL). It preserved all
+typed, original JSON, relational child, and committed-batch checks with
+writes=0, compared to the 22m8.338071321s initial single-worker baseline.
+This is an approximately 48.8% time reduction, but it does NOT meet the
+30–60-second verification-completion-lag goal compared with 7m53s ingestion.
+
+Second source-only optimization: the PostgreSQL B path uses a single read-only
+SQL snapshot per batch to prove exact durable metadata, all typed parent fields
+and each applicable DNS/identity child table with bidirectional EXCEPT ALL.
+It eliminates the redundant second parent-subset proof, batches SQL queries
+into a single PostgreSQL command, and pins verified parent catalog types with
+an independent final catalog recheck. Source archive SHA256 re-audit, exact
+batch identities, bounded 4-worker scheduling, SELECT-only role, fail-closed
+errors and final original/verified row reconciliation remain mandatory.
+The non-B SoR SQL ACK path and the original full verifier method are unchanged.
+
+This code change needs CI and a verifier-only C220 read-only benchmark. Do not
+rerun ingest or modify the 281-batch clone to benchmark B.
