@@ -1,0 +1,191 @@
+name: Pathfinder C1 Go development checks
+on:
+  push:
+    branches:
+      - dev/c1-ingest-sor-20261122
+    paths:
+      - 'go/internal/sensorc1/**'
+      - 'go/cmd/pathfinder-c1-frozen-check/**'
+      - 'go/cmd/pathfinder-c1-ingest-dev/**'
+      - 'go/cmd/pathfinder-c1-sor-dev/**'
+      - 'go/cmd/pathfinder-c1-verifier-dev/**'
+      - 'go/cmd/pathfinder-c1-ram-probe-dev/**'
+      - '.github/workflows/pathfinder-c1-go-development.yml'
+      - 'tools/pathfinder_c1_c220_preflight.sh'
+      - 'tools/test_pathfinder_c1_preflight.sh'
+      - 'tools/pathfinder_c1_c220_discover.sh'
+      - 'tools/pathfinder_c1_verify_stage.sh'
+      - 'tools/pathfinder_c1_fetch_stage_from_gh.sh'
+      - 'tools/test_pathfinder_c1_fetch_stage.sh'
+      - 'tools/pathfinder_c1_build_stage.sh'
+      - 'tools/pathfinder_c1_dev_pki.sh'
+      - 'docs/PATHFINDER-C1-C220-STAGING-HANDOFF.md'
+      - 'docs/PATHFINDER-C1-TCP-FREE-TMPFS-DESIGN-20261122.md'
+      - 'docs/PATHFINDER-C1-C220-MOUNT-AND-RAM-ACCEPTANCE.md'
+      - 'docs/PATHFINDER-C1-INGEST-SOR-DEVELOPMENT.md'
+  pull_request:
+    branches:
+      - dev/sensor-ingest-20261121
+    paths:
+      - 'go/internal/sensorc1/**'
+      - 'go/cmd/pathfinder-c1-frozen-check/**'
+      - 'go/cmd/pathfinder-c1-ingest-dev/**'
+      - 'go/cmd/pathfinder-c1-sor-dev/**'
+      - 'go/cmd/pathfinder-c1-verifier-dev/**'
+      - 'go/cmd/pathfinder-c1-ram-probe-dev/**'
+permissions:
+  contents: read
+jobs:
+  go-c1-development:
+    name: Pure Go contract tests (NOT FreeBSD runtime acceptance)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+      - name: Format in isolated CI checkout
+        working-directory: go
+        run: gofmt -w internal/sensorc1/*.go cmd/pathfinder-c1-frozen-check/*.go
+      - name: Unit tests
+        working-directory: go
+        run: go test ./internal/sensorc1 ./cmd/pathfinder-c1-frozen-check
+      - name: Race tests
+        working-directory: go
+        run: go test -race ./internal/sensorc1 ./cmd/pathfinder-c1-frozen-check
+      - name: Vet
+        working-directory: go
+        run: go vet ./internal/sensorc1 ./cmd/pathfinder-c1-frozen-check
+      - name: Read-only FreeBSD host audit script syntax
+        run: |
+          sh -n tools/pathfinder_c1_c220_preflight.sh
+          sh -n tools/test_pathfinder_c1_preflight.sh
+          sh -n tools/pathfinder_c1_c220_discover.sh
+          sh -n tools/pathfinder_c1_verify_stage.sh
+          sh -n tools/pathfinder_c1_fetch_stage_from_gh.sh
+          sh -n tools/test_pathfinder_c1_fetch_stage.sh
+          sh -n tools/pathfinder_c1_build_stage.sh
+          sh tools/test_pathfinder_c1_preflight.sh
+          # The script MUST refuse execution without explicit host paths.
+          if sh tools/pathfinder_c1_c220_preflight.sh >/dev/null 2>&1; then
+            echo "C1 host preflight unexpectedly accepted missing paths"
+            exit 1
+          fi
+      - name: Enforce TCP-free native Pathfinder C1 entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -En 'NewC1HTTPTransport|NewC1ControlServer|ListenAndServeTLS|ListenAndServe|"net"|"net/http"|sor-address|server-cert|client-cert' \
+            go/cmd/pathfinder-c1-ingest-dev/main_freebsd.go \
+            go/cmd/pathfinder-c1-sor-dev/main_freebsd.go; then
+            echo 'Native C1 must use ONLY duplex tmpfs for inter-jail IPC'
+            exit 1
+          fi
+      - name: FreeBSD build syntax check only
+        working-directory: go
+        run: |
+          GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build ./cmd/pathfinder-c1-frozen-check
+          GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build ./internal/sensorc1
+          GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build -tags pathfinder_c1_dev ./cmd/pathfinder-c1-ingest-dev ./cmd/pathfinder-c1-sor-dev ./cmd/pathfinder-c1-verifier-dev ./cmd/pathfinder-c1-ram-probe-dev
+
+  postgres18-clone:
+    name: PostgreSQL 18 disposable clone integration (NO C220 access)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+      - name: Start PostgreSQL 18 with an ephemeral local socket
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pathfinder-pg18-socket"
+          chmod 0777 "$RUNNER_TEMP/pathfinder-pg18-socket"
+          docker run -d --name pathfinder-c1-pg18 \
+            -e POSTGRES_PASSWORD=disposable-ci-only \
+            -e POSTGRES_DB=pathfinder_c1_clone \
+            -e POSTGRES_INITDB_ARGS=--auth-local=trust \
+            -v "$RUNNER_TEMP/pathfinder-pg18-socket:/var/run/postgresql" \
+            postgres:18 -c unix_socket_directories=/var/run/postgresql
+          for i in $(seq 1 60); do
+            if docker exec pathfinder-c1-pg18 \
+              psql -X -q -A -t -v ON_ERROR_STOP=1 \
+              -h /var/run/postgresql -U postgres -d pathfinder_c1_clone \
+              -c 'SELECT 1' 2>/dev/null | grep -qx '1'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs pathfinder-c1-pg18
+          exit 1
+      - name: Install EXISTING sensor schema into empty disposable clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i pathfinder-c1-pg18 \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d pathfinder_c1_clone <<'SQL'
+          CREATE ROLE pathfinder_app LOGIN;
+          CREATE SCHEMA pathfinder;
+          GRANT USAGE ON SCHEMA pathfinder TO pathfinder_app;
+          SQL
+          docker exec -i pathfinder-c1-pg18 \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d pathfinder_c1_clone \
+            < go/cmd/pathfinder/migrations/0008-sensor-observation-sor.sql
+          docker exec -i pathfinder-c1-pg18 \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d pathfinder_c1_clone \
+            < go/cmd/pathfinder/migrations/0009-sensor-batch-replay-indexes.sql
+          docker exec -i pathfinder-c1-pg18 \
+            psql -X -v ON_ERROR_STOP=1 -U postgres -d pathfinder_c1_clone <<'SQL'
+          CREATE ROLE pathfinder_c1_verifier LOGIN;
+          GRANT USAGE ON SCHEMA pathfinder TO pathfinder_c1_verifier;
+          GRANT SELECT ON ALL TABLES IN SCHEMA pathfinder TO pathfinder_c1_verifier;
+          SQL
+      - name: Test real PG18 SQL commits, duplicate replay and child tamper
+        working-directory: go
+        shell: bash
+        run: |
+          set -euo pipefail
+          wrapper="$RUNNER_TEMP/pathfinder-c1-psql-wrapper"
+          printf '%s\n' '#!/bin/sh' \
+            'exec docker exec -i pathfinder-c1-pg18 psql "$@"' > "$wrapper"
+          chmod 0700 "$wrapper"
+          export PATHFINDER_C1_PG_TEST_WRAPPER="$wrapper"
+          go test -tags pathfinder_pg18_integration \
+            -count=1 -v ./internal/sensorc1 \
+            -run 'TestActualPostgres18|TestRealSQLPlansAreDeterministic|TestFullC1|TestPG18Recovery|TestRecoveryHash|TestPG18Concurrent'
+      - name: Always destroy disposable PostgreSQL container
+        if: always()
+        shell: bash
+        run: docker rm -fv pathfinder-c1-pg18 || true
+
+  freebsd-stage-package:
+    name: FreeBSD 15.1 C220 test staging package (NO DEPLOYMENT)
+    if: github.event_name == 'push'
+    needs:
+      - go-c1-development
+      - postgres18-clone
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+      - name: Build four pinned FreeBSD development binaries and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh tools/pathfinder_c1_build_stage.sh \
+            "$GITHUB_SHA" "$GITHUB_WORKSPACE/.staging/pathfinder-c1-freebsd15-amd64"
+          file "$GITHUB_WORKSPACE/.staging/pathfinder-c1-freebsd15-amd64/bin/"*
+          sh "$GITHUB_WORKSPACE/.staging/pathfinder-c1-freebsd15-amd64/tools/pathfinder_c1_verify_stage.sh" \
+            "$GITHUB_WORKSPACE/.staging/pathfinder-c1-freebsd15-amd64"
+          sh tools/test_pathfinder_c1_fetch_stage.sh \
+            "$GITHUB_WORKSPACE/.staging/pathfinder-c1-freebsd15-amd64"
+      - name: Upload verified DEVELOPMENT-ONLY staging package
+        uses: actions/upload-artifact@v4
+        with:
+          name: pathfinder-c1-freebsd15-amd64
+          path: .staging/pathfinder-c1-freebsd15-amd64/
+          if-no-files-found: error
+          retention-days: 14
